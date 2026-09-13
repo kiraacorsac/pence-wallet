@@ -12,6 +12,7 @@ import {
   type MobileCalculatorKey,
   type MobileCalculatorState,
 } from './mobileCalculatorState'
+import { baseCurrency, currencyDecimals } from '../money'
 
 export class MobileTransactionModal extends TransactionModal {
   private mobileTabsEl!: HTMLElement
@@ -21,7 +22,7 @@ export class MobileTransactionModal extends TransactionModal {
   private mobileCalculatorPad: MobileCalculatorPad | null = null
   private mobileCalculatorClose: (() => void) | null = null
   private mobileCalculatorTitleEl: HTMLElement | null = null
-  private mobileDecimalPlaces = 0
+  private mobileDecimalPlaces: number = 0
   private viewportCleanups: (() => void)[] = []
 
   onOpen() {
@@ -75,7 +76,7 @@ export class MobileTransactionModal extends TransactionModal {
       this.openCalculatorPad()
     })
     this.mobileAmountEl = amountArea.createDiv('pw-mobile-amount-display')
-    this.mobileDecimalPlaces = config.decimalPlaces
+    this.mobileDecimalPlaces = currencyDecimals(baseCurrency(config), config)
     this.mobileCalculatorState = createMobileCalculatorState(this.amount, this.mobileDecimalPlaces)
     this.updateAmountDisplay()
 

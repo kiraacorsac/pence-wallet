@@ -18,7 +18,7 @@ export function buildWalletText(tx: Transaction): string {
 
 export function buildAmountDisplay(
   tx: Transaction,
-  dp: 0 | 2 = 0,
+  dp: number = 0,
 ): { text: string; className: string } {
   const refund = isRefund(tx)
   const className = refund

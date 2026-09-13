@@ -48,7 +48,7 @@ export function getThemeColors() {
   }
 }
 
-export function formatK(n: number, dp: 0 | 2 = 0): string {
+export function formatK(n: number, dp: number = 0): string {
   return Math.abs(n) >= 10000
     ? (n / 1000).toFixed(0) + 'k'
     : Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })
@@ -83,7 +83,7 @@ export function getMonthRange(count: number): string[] {
 export function drawIncExpChart(
   container: HTMLElement,
   data: MonthData[],
-  dp: 0 | 2 = 0,
+  dp: number = 0,
 ): Chart {
   const colors = getThemeColors()
 
@@ -187,7 +187,7 @@ export function drawIncExpChart(
 export function drawNetChart(
   container: HTMLElement,
   data: MonthData[],
-  dp: 0 | 2 = 0,
+  dp: number = 0,
 ): Chart {
   const colors = getThemeColors()
 
@@ -352,7 +352,7 @@ export function filterPieData(data: Map<string, number>): Map<string, number> {
 export function drawPie(
   container: HTMLElement,
   data: Map<string, number>,
-  dp: 0 | 2 = 0,
+  dp: number = 0,
   onSegmentClick?: (categoryKey: string) => void,
   size = 200,
 ): Chart {

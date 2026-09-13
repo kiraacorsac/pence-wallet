@@ -8,6 +8,7 @@ import { Transaction, TransactionType } from '../types'
 import { currentYearMonth, formatAmount } from '../utils'
 import { renderSharedHeader } from './SharedHeader'
 import { buildAmountDisplay, buildLine3Display, buildWalletText } from './detailRow'
+import { baseCurrency, currencyDecimals } from '../money'
 
 export const DETAIL_VIEW_TYPE = 'penny-wallet-detail'
 
@@ -27,7 +28,7 @@ export class DetailView extends ItemView {
 
   // Refs for lightweight list updates (search)
   private cachedTransactions: Transaction[] = []
-  private cachedDp: 0 | 2 = 0
+  private cachedDp: number = 0
   private listEl: HTMLElement | null = null
   private listWrapEl: HTMLElement | null = null
   private subtotalEl: HTMLElement | null = null
@@ -94,7 +95,7 @@ export class DetailView extends ItemView {
     contentEl.addClass('pw-detail')
 
     await this.ensureCacheForCurrentFilter()
-    this.cachedDp = this.walletFile.getConfig().decimalPlaces ?? 0
+    this.cachedDp = currencyDecimals(baseCurrency(this.walletFile.getConfig()), this.walletFile.getConfig())
 
     renderSharedHeader(contentEl, {
       view: this,
@@ -731,7 +732,7 @@ export class DetailView extends ItemView {
     })
   }
 
-  private renderTxRow(container: HTMLElement, tx: Transaction, dp: 0 | 2 = 0) {
+  private renderTxRow(container: HTMLElement, tx: Transaction, dp: number = 0) {
     const row = container.createDiv('pw-tx-row')
     row.dataset['testid'] = 'tx-row'
 

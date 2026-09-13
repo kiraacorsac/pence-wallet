@@ -6,6 +6,7 @@ import { renderSharedHeader } from './SharedHeader'
 import { Chart } from 'chart.js'
 import { MonthData, drawNetChart, drawPie, getMonthRange } from './charts'
 import { renderCard } from './components'
+import { baseCurrency, currencyDecimals } from '../money'
 
 export const ASSET_VIEW_TYPE = 'penny-wallet-asset'
 
@@ -60,7 +61,7 @@ export class AssetView extends ItemView {
     ])
 
     const netAsset = this.walletFile.computeNetAsset(walletBalances)
-    const dp = this.walletFile.getConfig().decimalPlaces ?? 0
+    const dp = currencyDecimals(baseCurrency(this.walletFile.getConfig()), this.walletFile.getConfig())
 
     renderSharedHeader(contentEl, {
       view: this,

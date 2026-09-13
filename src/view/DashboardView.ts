@@ -8,6 +8,7 @@ import { DETAIL_VIEW_TYPE } from './DetailView'
 import { renderSharedHeader } from './SharedHeader'
 import { Chart } from 'chart.js'
 import { MonthData, drawIncExpChart, drawPie, getMonthRangeEndingAt } from './charts'
+import { baseCurrency, currencyDecimals } from '../money'
 
 export const DASHBOARD_VIEW_TYPE = 'penny-wallet-dashboard'
 
@@ -69,7 +70,7 @@ export class DashboardView extends ItemView {
       onMonthChange: (ym) => { this.currentYearMonth = ym; void this.render() },
     })
 
-    const dp = this.walletFile.getConfig().decimalPlaces ?? 0
+    const dp = currencyDecimals(baseCurrency(this.walletFile.getConfig()), this.walletFile.getConfig())
 
     // ── Monthly metrics ──────────────────────────────────────────────────────
     let monthIncome = 0, monthExpense = 0

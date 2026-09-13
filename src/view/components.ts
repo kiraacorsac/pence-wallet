@@ -4,7 +4,7 @@ export type MetricVariant = 'income' | 'expense' | 'positive' | 'negative' | 'ne
 
 export interface MetricOptions {
   hero?: boolean
-  dp?: 0 | 2
+  dp?: number
 }
 
 export function createMetric(

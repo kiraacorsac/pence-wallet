@@ -11,6 +11,7 @@ export interface Transaction {
   note: string
   tags?: string[]
   amount: number
+  amountTo?: number    // cross-currency transfer: amount received, in the toWallet currency
   createdAt?: string  // ISO 8601 timestamp; absent in data written before this field was added
 }
 
@@ -20,6 +21,7 @@ export interface Wallet {
   initialBalance: number  // may be negative (e.g. a credit card's outstanding debt)
   status: 'active' | 'archived'
   includeInNetAsset: boolean  // active wallets always true; archived wallets can be toggled
+  currency?: string       // ISO 4217 code; absent means the config's base currency
 }
 
 export interface MonthSummary {
@@ -47,11 +49,26 @@ export interface SettingsStore {
   saveData(data: unknown): Promise<void>
 }
 
+/**
+ * One leg of the dated exchange-rate table: from `effectiveFrom` onwards,
+ * 1 unit of `code` is worth `rate` units of the config's base currency.
+ */
+export interface RatePoint {
+  code: string           // ISO 4217 code being priced
+  effectiveFrom: string  // 'YYYY-MM'; applies to that month and every later one
+  rate: number
+}
+
+/** 'auto' derives decimals from each currency; 0 | 2 force one setting globally. */
+export type DecimalPlaces = 0 | 2 | 'auto'
+
 export interface PennyWalletConfig {
   wallets: Wallet[]
   defaultWallet: string
   folderName: string
-  decimalPlaces: 0 | 2
+  decimalPlaces: DecimalPlaces
+  baseCurrency: string
+  rates: RatePoint[]
   options: PennyWalletOptions
   tags: string[]
   autoValidateOnLoad: boolean
@@ -101,6 +118,8 @@ export const DEFAULT_CONFIG: PennyWalletConfig = {
   defaultWallet: 'Default Wallet',
   folderName: 'PennyWallet',
   decimalPlaces: 0,
+  baseCurrency: 'USD',
+  rates: [],
   // Seeded with localized labels by WalletFile at config-creation time
   options: {
     categories: {

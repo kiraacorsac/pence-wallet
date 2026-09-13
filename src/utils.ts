@@ -13,7 +13,7 @@ export function isAfterCurrentMonth(ym: string): boolean {
   return ym > currentYearMonth()
 }
 
-export function formatAmount(n: number, dp: 0 | 2 = 0): string {
+export function formatAmount(n: number, dp: number = 0): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })
 }
 
