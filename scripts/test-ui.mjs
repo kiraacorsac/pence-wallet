@@ -448,7 +448,7 @@ section('Credit card balance direction')
 // We check the wallet list card renders correctly.
 openAsset()
 wait(400)
-assert('Wallet list shows credit card rows', count('.pw-badge-creditCard') > 0)
+assert('Wallet list shows account rows', count('.pw-asset-wallet-row') > 0)
 
 // ─────────────────────────────────────────────────────────────────────────────
 section('Settings tab')

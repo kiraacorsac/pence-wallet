@@ -19,8 +19,8 @@ Money leaving one of your accounts for a purchase or payment.
 
 **Effect on balance:**
 - Cash / Bank account → balance decreases
-- Credit Card → outstanding debt increases
-- Refund toggle → amount is stored as a negative expense; credit card debt or cash/bank spending is reduced
+- An account already in debt goes further negative
+- Refund toggle → amount is stored as a negative expense, adding the money back to the account
 
 **Example:** Paid NT$280 for lunch with cash
 → Account: `Cash`, Category: `Food`, Amount: `280`
@@ -32,7 +32,7 @@ Money leaving one of your accounts for a purchase or payment.
 
 ### Income
 
-Money arriving into one of your cash or bank accounts. Credit card accounts are excluded from the income account selector.
+Money arriving into one of your accounts. Every active account is selectable.
 
 | Field | Required | Notes |
 |-------|----------|-------|
@@ -51,11 +51,11 @@ Money arriving into one of your cash or bank accounts. Credit card accounts are 
 
 ### Transfer
 
-Moving money between two of your own accounts — including credit card payments and investment trades.
+Moving money between two of your own accounts — including paying off a credit card.
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| Category | Yes | e.g. Account Transfer, Credit Card Payment |
+| Category | Yes | e.g. Account Transfer, Credit Card Payment — a name only, it changes nothing |
 | From Account | Yes | Source account |
 | To Account | Yes | Destination account |
 | Note | No | Free-text description |
@@ -65,21 +65,13 @@ Moving money between two of your own accounts — including credit card payments
 
 | Category | From Account | To Account |
 |----------|-------------|------------|
-| Account Transfer | Any non-credit-card | Any non-credit-card |
-| Credit Card Payment | Cash or Bank | Credit Card |
-| Investment Trade | Any | Any |
-
-**Effect on balance:**
-- Account Transfer / Investment Trade: From decreases, To increases
-- Credit Card Payment: From (bank) decreases, To (credit card) debt decreases
-
-**Example:** Withdraw NT$8,000 cash from ATM
-→ Category: `Account Transfer`, From: `HSBC Savings`, To: `Cash`, Amount: `8000`
+Any active account can be the source or the target, under any category. The **From**
+account decreases by the amount and the **To** account increases by it — nothing else.
 
 **Example:** Pay NT$5,200 credit card bill from savings
 → Category: `Credit Card Payment`, From: `HSBC Savings`, To: `Visa Platinum`, Amount: `5200`
 
-> See [Credit Card Workflow](./credit-card-workflow) for the full credit card cycle.
+> See [Tracking a Credit Card](./credit-card-workflow) for a full walkthrough.
 
 ---
 
@@ -112,7 +104,7 @@ Editing supports changing the **date** (including moving the transaction to a di
 
 ---
 
-## Default Categories
+## Categories in a New Vault
 
 ### Expense
 `Food` · `Clothing` · `Home` · `Transport` · `Education` · `Entertainment` · `Shopping` · `Medical` · `Cash Expense` · `Insurance` · `Fees` · `Tax`
@@ -123,8 +115,10 @@ Editing supports changing the **date** (including moving the transaction to a di
 ### Transfer
 `Account Transfer` · `Credit Card Payment` · `Investment Trade`
 
+These are seeded when the vault is first created and are ordinary entries from then on — rename, reorder or remove any of them. None of them changes how a transaction behaves.
+
 Refunds are no longer a transfer category. Use **Expense** with the refund toggle instead.
 
 If a transaction has no category, it is shown as **Uncategorized**. This is a display-only label — nothing is stored.
 
-Custom categories can be added in **Settings → PennyWallet → Custom Categories**.
+Categories are managed in **Settings → PennyWallet → Categories**.

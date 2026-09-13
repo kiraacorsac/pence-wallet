@@ -3,7 +3,6 @@ import { TransactionType, PennyWalletConfig } from '../types'
 import { t } from '../i18n'
 import { TransactionModal } from './TransactionModal'
 import { formatMobileHeroAmount } from '../utils'
-import { getTransferWalletCandidates } from './transactionState'
 import { openBottomSheetPicker, openBottomSheetShell, type BottomSheetOption } from './BottomSheetPicker'
 import { openTagPicker } from './TagPicker'
 import { MobileCalculatorPad } from './MobileCalculatorPad'
@@ -197,10 +196,8 @@ export class MobileTransactionModal extends TransactionModal {
     )
 
     if (isTransferOrPayment) {
-      this.normalizeWalletForCategory(config)
-
-      const { fromCandidates: fromWallets, toCandidates: toWallets }
-        = getTransferWalletCandidates(activeWallets, this.category)
+      const fromWallets = activeWallets
+      const toWallets = activeWallets
 
       this.addMobileBottomSheetRow(
         this.mobileRowsEl,
@@ -222,15 +219,11 @@ export class MobileTransactionModal extends TransactionModal {
         true,
       )
     } else {
-      const walletOptions = this.type === 'income'
-        ? activeWallets.filter(w => w.type !== 'creditCard')
-        : activeWallets
-
       this.addMobileBottomSheetRow(
         this.mobileRowsEl,
         t('modal.wallet'),
         this.wallet || '—',
-        this.withEmptyOption(walletOptions.map(w => ({ key: w.name, label: w.name }))),
+        this.withEmptyOption(activeWallets.map(w => ({ key: w.name, label: w.name }))),
         () => this.wallet,
         (key) => { this.wallet = key },
         true,

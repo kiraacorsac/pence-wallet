@@ -136,7 +136,6 @@ Object.defineProperty(global, 'window', {
 | 函式 | 測試項目 |
 |------|---------|
 | `parseRow` | 有效列 → 正確的 Transaction 物件 |
-| `parseRow` | 舊版 `payment` / `repayment` 類型 → 正規化為 `transfer` + `credit_card_payment` |
 | `parseRow` | 負數金額 → 解析為退款支出 |
 | `parseRow` | `-` 欄位 → 結果中為 `undefined` |
 | `parseRow` | 少於 8 欄 → `null` |
@@ -159,20 +158,20 @@ Object.defineProperty(global, 'window', {
 | 情境 | 預期結果 |
 |------|---------|
 | 銀行支出 → 餘額減少 | `initialBalance - amount` |
-| 信用卡支出 → 欠款增加 | `initialBalance + amount` |
-| 信用卡負支出 → 欠款減少 | `initialBalance - amount` |
+| 支出使帳戶跌破零 | `initialBalance - amount` |
+| 負支出（退款）→ 餘額回升 | `initialBalance + amount` |
 | 銀行收入 → 餘額增加 | `initialBalance + amount` |
 | 移轉 → 來源減少，目標增加 | 兩者都正確 |
-| `credit_card_payment` 移轉 → 銀行減少，信用卡欠款減少 | 兩者都正確 |
+| 移轉：銀行 → 負餘額帳戶 | 來源減少，目標向零回升 |
 | 設定中不存在的帳戶 → 靜默忽略 | 不崩潰 |
-| 帳戶排序 → 始終依現金 → 銀行 → 信用卡 | 排序驗證 |
+| 帳戶排序 → 依設定順序 | 排序驗証 |
 
 `computeNetAsset`
 
 | 情境 | 預期 |
 |------|------|
-| 無信用卡 | `Σ(現金 + 銀行)` |
-| 有信用卡 | `Σ(現金 + 銀行) - 信用卡欠款` |
+| 所有餘額為正 | `Σ(餘額)` |
+| 有負餘額 | `Σ(餘額)`，負餘額自動扣除 |
 | `includeInNetAsset: false` 的封存帳戶 | 排除在外 |
 | `includeInNetAsset: true` 的封存帳戶 | 計入 |
 
@@ -279,7 +278,7 @@ export function createMockApp(initialFiles: Record<string, string> = {}) {
 | 無檔案的 `readMonth` | 回傳 `[]` |
 | `calculateWalletData` | `walletsWithTransactions` 包含已使用的帳戶名稱 |
 | `getNetAssetTimeline` 累積 | 每月淨資產等於手動計算值 |
-| `getWalletBalanceTrend` — 跨月追蹤 | 現金/銀行餘額累積正確；排除信用卡；無資料時 map 為空 |
+| `getWalletBalanceTrend` — 跨月追蹤 | 餘額累積正確；排除已封存帳戶；無資料時 map 為空 |
 | `getCategoryTrend` | 每月分類加總；無匹配交易時回傳 0 |
 | `walletHasTransactions` | 匹配 wallet、fromWallet、toWallet；未使用時回傳 false |
 | `getMonthSummaries` | 回傳有檔案月份的 summary；無檔案月份跳過 |
@@ -315,7 +314,7 @@ export function createMockApp(initialFiles: Record<string, string> = {}) {
 | Edit transaction | 編輯 modal 開啟、預填資料、送出後關閉、row 數不變 |
 | Delete transaction — cancel | 確認對話框出現、取消後 row 數不變 |
 | Delete transaction — confirm | Row 數減少 1 |
-| Credit card balance direction | 信用卡 badge rows 存在 |
+| 負餘額顯示方向 | 帳戶 rows 存在 |
 | Settings tab | 分頁開啟、資料夾/小數點設定可見 |
 | Account — add new wallet | 新帳戶出現在清單 |
 | Account — edit wallet | 編輯 modal 開啟並顯示正確欄位 |
@@ -361,7 +360,7 @@ npm run demo:reset
 |------|------|
 | `src/io/WalletFile.ts`（純方法） | ≥ 90% |
 | `src/utils.ts` | 100% |
-| `src/types.ts`（遷移 helpers） | 100% |
+| `src/types.ts` | 100% |
 | 檢視 / Modal / 設定（UI） | `npm run test:ui`（50 個檢查，需要 Obsidian 執行中） |
 
 執行覆蓋率：

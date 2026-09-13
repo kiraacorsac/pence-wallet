@@ -17,13 +17,15 @@ obsidian://penny-wallet?參數1=值1&參數2=值2
 | `type` | 否 | `expense`（預設）/ `income` / `transfer` |
 | `amount` | 否 | 金額 |
 | `note` | 否 | 備註 |
-| `category` | 否 | 分類 key 或自訂名稱 |
+| `category` | 否 | 分類名稱，或下方的舊版 key |
 | `wallet` | 否 | 帳戶名稱（支出 / 收入用） |
 | `fromWallet` | 否 | 來源帳戶（移轉用） |
 | `toWallet` | 否 | 目標帳戶（移轉用） |
 | `date` | 否 | 日期，格式 `yyyy-mm-dd`，預設今天 |
 
-### 分類 key 對照
+### 舊版分類 key 對照
+
+分類現在就是普通名稱，因此 `category=飲食` 是最直接的寫法。下方的 key 仍然可用，以相容舊版建置的連結：key 會被解析為目前語言下對應的分類名稱，且儲存的是名稱。若 key 已不對應任何分類，則原樣帶入。
 
 **支出**
 

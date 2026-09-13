@@ -65,19 +65,19 @@ Lists archived accounts. Each row has:
 
 Fields:
 - **Name** — unique, cannot be empty
-- **Type** — Cash / Bank / Credit Card
-- **Initial Balance** — current balance (credit card: current outstanding debt)
+- **Type** — Cash / Bank
+- **Initial Balance** — current balance. Use a negative number for an account you owe money on, such as a credit card
 
 Click **Add Account** or press **Enter** in any field to confirm.
 
 ---
 
-## Custom Categories
+## Categories
 
-Add your own expense, income, and transfer categories.
+Manage your expense, income, and transfer categories.
 
-Three sections are available: **Expense**, **Income**, and **Transfer**. Custom categories are shown **after** the default categories in the Add Transaction form.
+Three sections are available: **Expense**, **Income**, and **Transfer**. A new vault starts with a ready-made set of categories, but none of them are special — every entry can be removed, and new ones are added the same way. Categories appear in the Add Transaction form in the order listed here.
 
-Click **×** on a tag to remove a custom category. This does not affect existing transactions that already used that category — they will continue to display the category name as a raw string.
+Click **×** on a tag to remove a category. This does not affect existing transactions that already used it — they will continue to display the category name as a raw string.
 
-> A category name cannot duplicate an existing default or custom category in either list.
+> A category name cannot duplicate another category in either list.

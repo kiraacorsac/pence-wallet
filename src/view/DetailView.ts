@@ -617,9 +617,8 @@ export class DetailView extends ItemView {
 
         for (const w of wallets) {
           const isSelected = this.filterWallets.has(w.name)
-          const colorKey = w.type === 'creditCard' ? 'credit' : w.type
           const pill = group.createEl('button', {
-            cls: `pw-pill pw-pill-color-${colorKey}` + (isSelected ? ' is-active' : ''),
+            cls: `pw-pill pw-pill-color-${w.type}` + (isSelected ? ' is-active' : ''),
             text: w.name,
           })
           const handler = () => {

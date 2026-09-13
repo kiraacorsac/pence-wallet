@@ -39,7 +39,7 @@ netAsset: 0
 | 04/11 | expense   | Visa Platinum | -            | -             | shopping | Return    | -           | -320   | 2026-04-11T16:20:00.000Z |
 | 04/10 | expense   | Cash          | -            | -             | food     | Lunch     | work        | 280    | 2026-04-10T12:05:00.000Z |
 | 04/05 | transfer  | -             | HSBC Savings | Cash          | -        | ATM       | -           | 8000   | 2026-04-05T09:00:00.000Z |
-| 04/28 | transfer  | -             | HSBC Savings | Visa Platinum | credit_card_payment | Card bill | - | 5000 | 2026-04-28T10:00:00.000Z |
+| 04/28 | transfer  | -             | HSBC Savings | Visa Platinum | Credit Card Payment | Card bill | - | 5000 | 2026-04-28T10:00:00.000Z |
 ```
 
 ### Column Reference
@@ -51,7 +51,7 @@ netAsset: 0
 | Wallet | account name | `-` |
 | From | `-` | source account |
 | To | `-` | destination account |
-| Category | category key or custom name | transfer category key or custom name |
+| Category | category name as shown in Settings, or `-` | transfer category name, or `-` |
 | Note | optional text | optional text |
 | Tags | comma-separated tags or `-` | comma-separated tags or `-` |
 | Amount | positive number; refund expenses use a negative number | positive number |
@@ -81,8 +81,8 @@ Stored at the **vault root** (not inside the transactions folder).
     },
     {
       "name": "Visa Platinum",
-      "type": "creditCard",
-      "initialBalance": 2000,
+      "type": "bank",
+      "initialBalance": -2000,
       "status": "active",
       "includeInNetAsset": true
     }
@@ -91,17 +91,25 @@ Stored at the **vault root** (not inside the transactions folder).
   "folderName": "PennyWallet",
   "decimalPlaces": 0,
   "options": {
-    "types": { "default": ["expense", "income", "transfer"], "custom": [] },
     "categories": {
-      "expense": { "default": ["food", "clothing", "housing", "transport", "education", "entertainment", "shopping", "medical", "cash_expense", "insurance", "fees", "tax"], "custom": ["Coffee"] },
-      "income":  { "default": ["salary", "interest", "side_income", "bonus", "lottery", "rent", "cashback", "dividend", "investment_profit", "insurance_income", "pension"], "custom": [] },
-      "transfer": { "default": ["account_transfer", "credit_card_payment", "investment_trade"], "custom": [] }
+      "expense": ["Food", "Clothing", "Housing", "Transport", "Education", "Entertainment", "Shopping", "Medical", "Cash Expense", "Insurance", "Fees", "Tax", "Coffee"],
+      "income": ["Salary", "Interest", "Side Income", "Bonus", "Lottery", "Rent", "Cashback", "Dividend", "Investment Profit", "Insurance Payout", "Pension"],
+      "transfer": ["Account Transfer", "Credit Card Payment", "Investment Trade"]
     }
   },
   "tags": [],
   "autoValidateOnLoad": true
 }
 ```
+
+---
+
+## Format Compatibility
+
+PennyWallet reads the current format only — ten columns per row, and category lists as
+plain arrays. It never rewrites your files to upgrade them. A vault written by a much
+older version may need its `.penny-wallet.json` and month files adjusted by hand; they
+are plain text, so any editor will do.
 
 ---
 

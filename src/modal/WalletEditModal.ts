@@ -50,15 +50,12 @@ export class WalletEditModal extends Modal {
     balanceRow.createEl('label', { text: t('settings.initialBalance'), cls: 'pw-wallet-edit-label' })
     const balInput = balanceRow.createEl('input', { type: 'number', cls: 'pw-field-input' })
     balInput.value = String(this.balance)
-    balInput.setAttribute('min', '0')
     balInput.setAttribute('enterkeyhint', 'done')
     balInput.addEventListener('input', () => { this.balance = parseFloat(balInput.value) || 0 })
     balInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') balInput.blur() })
 
     formEl.createEl('p', {
-      text: this.wallet.type === 'creditCard'
-        ? t('settings.creditBalanceHint')
-        : t('settings.cashBankBalanceHint'),
+      text: t('settings.balanceHint'),
       cls: 'pw-balance-hint pw-wallet-edit-hint',
     })
 
@@ -67,12 +64,6 @@ export class WalletEditModal extends Modal {
     saveBtn.dataset['action'] = 'save'
     saveBtn.addEventListener('click', () => {
       if (!this.name) { new Notice(t('err.walletNameEmpty')); return }
-      if ((this.wallet.type === 'cash' || this.wallet.type === 'bank') && this.balance < 0) {
-        new Notice(t('err.cashBankNegativeBalance')); return
-      }
-      if (this.wallet.type === 'creditCard' && this.balance < 0) {
-        new Notice(t('err.creditNegativeBalanceShort')); return
-      }
       void this.onSave({ name: this.name, initialBalance: this.balance })
       this.close()
     })

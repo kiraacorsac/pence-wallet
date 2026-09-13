@@ -17,13 +17,19 @@ obsidian://penny-wallet?param1=value1&param2=value2
 | `type` | No | `expense` (default) / `income` / `transfer` |
 | `amount` | No | Amount |
 | `note` | No | Note / description |
-| `category` | No | Category key or custom name |
+| `category` | No | Category name, or one of the legacy keys below |
 | `wallet` | No | Account name (expense / income) |
 | `fromWallet` | No | Source account (transfer) |
 | `toWallet` | No | Destination account (transfer) |
 | `date` | No | Date in `yyyy-mm-dd` format, defaults to today |
 
-### Default Category Keys
+### Legacy Category Keys
+
+Categories are ordinary names now, so `category=Food` is the direct form. The keys
+below are still accepted for links written against older versions: a key is
+resolved to the matching category name in your current language, and the name is
+what gets stored. A key that no longer matches any category is passed through
+unchanged.
 
 **Expense**
 

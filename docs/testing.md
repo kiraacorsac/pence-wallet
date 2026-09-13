@@ -136,7 +136,6 @@ These functions are **pure** (no I/O, no Obsidian API):
 | Function | What to assert |
 |----------|---------------|
 | `parseRow` | Valid row → correct Transaction object |
-| `parseRow` | legacy `payment` / `repayment` type → normalised to `transfer` + `credit_card_payment` |
 | `parseRow` | negative amount → refund expense parsed |
 | `parseRow` | `-` fields → `undefined` in result |
 | `parseRow` | Less than 8 columns → `null` |
@@ -159,20 +158,20 @@ These functions are **pure** (no I/O, no Obsidian API):
 | Scenario | Expected result |
 |----------|----------------|
 | expense on bank → balance decreases | `initialBalance - amount` |
-| expense on creditCard → debt increases | `initialBalance + amount` |
-| negative expense on creditCard → debt decreases | `initialBalance - amount` |
+| expense pushes an account below zero | `initialBalance - amount` |
+| negative expense (refund) → balance restored | `initialBalance + amount` |
 | income on bank → balance increases | `initialBalance + amount` |
 | transfer → fromWallet decreases, toWallet increases | both correct |
-| `credit_card_payment` transfer → bank decreases, creditCard debt decreases | both correct |
+| transfer bank → account in debt | from decreases, to rises towards zero |
 | wallet not in config → silently ignored | no crash |
-| wallet order → always cash → bank → creditCard | sort verified |
+| wallet order → follows config order | sort verified |
 
 `computeNetAsset`
 
 | Scenario | Expected |
 |----------|---------|
-| no credit card | `Σ(cash + bank)` |
-| with credit card | `Σ(cash + bank) - creditDebt` |
+| all balances positive | `Σ(balances)` |
+| one balance negative | `Σ(balances)`, the negative one subtracts |
 | archived wallet with `includeInNetAsset: false` | excluded from sum |
 | archived wallet with `includeInNetAsset: true` | included |
 
@@ -279,7 +278,7 @@ export function createMockApp(initialFiles: Record<string, string> = {}) {
 | `readMonth` with no file | returns `[]` |
 | `calculateWalletData` | `walletsWithTransactions` contains used wallet names |
 | `getNetAssetTimeline` incremental | net asset at each month equals manual calculation |
-| `getWalletBalanceTrend` — cross-month | cash/bank balances accumulate correctly; credit cards excluded; empty map when no data |
+| `getWalletBalanceTrend` — cross-month | balances accumulate correctly; archived accounts excluded; empty map when no data |
 | `getCategoryTrend` | per-month category sum; returns 0 when no matching transactions |
 | `walletHasTransactions` | matches wallet, fromWallet, toWallet; returns false when unused |
 | `getMonthSummaries` | returns summary for months with files; skips missing months |
@@ -361,7 +360,7 @@ See [Developer Guide → Manual Test Checklist](./developer-guide#manual-test-ch
 |------|--------|
 | `src/io/WalletFile.ts` (pure methods) | ≥ 90% |
 | `src/utils.ts` | 100% |
-| `src/types.ts` (migration helpers) | 100% |
+| `src/types.ts` | 100% |
 | View / Modal / Settings (UI) | `npm run test:ui` (50 checks, requires Obsidian running) |
 
 Run coverage:

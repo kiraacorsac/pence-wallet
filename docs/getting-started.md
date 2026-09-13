@@ -33,8 +33,8 @@ Go to **Settings → PennyWallet → Active Accounts** and click **Add Account**
 For each account you have, add an entry with:
 
 - **Name** — any label you want (e.g. `Cash`, `HSBC Savings`, `Visa Platinum`)
-- **Type** — `Cash`, `Bank`, or `Credit Card`
-- **Initial Balance** — your current balance (for credit cards, enter your current outstanding debt as a positive number, e.g. `3000` means you owe 3,000)
+- **Type** — `Cash` or `Bank`
+- **Initial Balance** — your current balance. Enter a negative number for money you owe, e.g. `-3000` for a credit card with 3,000 outstanding
 
 > **Tip:** Add all accounts before logging any transactions, so balances are calculated correctly from the start.
 

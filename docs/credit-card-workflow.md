@@ -1,19 +1,24 @@
-# Credit Card Workflow
+# Tracking a Credit Card
 
-Credit card accounts in PennyWallet track **outstanding debt**, not a traditional balance. This page explains the complete credit card cycle.
+PennyWallet has no credit card account type. A credit card is an ordinary account whose balance is **negative** — the amount you currently owe. Every account works this way, so there is nothing special to learn.
 
 ---
 
-## How Credit Card Balances Work
+## The One Rule
 
-| Event | Effect on Credit Card |
-|-------|-----------------------|
-| Add a credit card with initial balance `3000` | Starts with NT$3,000 outstanding debt |
-| Record an **Expense** on the credit card | Debt increases |
-| Record a **Transfer (Credit Card Payment)** | Debt decreases |
-| Record an **Expense with Refund enabled** on the credit card | Debt decreases (refund reversal) |
+| Transaction | Effect |
+|-------------|--------|
+| **Expense** on an account | Balance decreases |
+| **Income** into an account | Balance increases |
+| **Transfer** | From account decreases, To account increases |
 
-The balance shown in Finance Overview is displayed as a **negative number** (e.g. `−4,500`) because it represents money you owe, and is **subtracted** from your net asset.
+That is the whole model. It applies to every account and every category. A card's debt grows when you spend on it and shrinks when you transfer money into it, because those are the same two rules as everywhere else.
+
+The balance shown in Finance Overview is whatever the number actually is, negative included, and net asset simply adds every included account together — so a negative balance subtracts.
+
+::: tip The category is only a label
+`Credit Card Payment` is a category name seeded into new vaults for convenience. It carries no behaviour: renaming it, deleting it, or using a different category changes nothing about how the money moves.
+:::
 
 ---
 
@@ -22,16 +27,17 @@ The balance shown in Finance Overview is displayed as a **negative number** (e.g
 ### Setup
 
 You have two accounts:
-- `HSBC Savings` (Bank) — NT$50,000
-- `Visa Platinum` (Credit Card) — current outstanding debt NT$2,000
 
-In Settings, set Visa Platinum's **Initial Balance** to `2000`.
+- `HSBC Savings` (Bank) — NT$50,000
+- `Visa Platinum` (Bank) — you currently owe NT$2,000
+
+In Settings, set Visa Platinum's **Initial Balance** to `-2000`.
 
 ---
 
-### 1. Spend on the credit card
+### 1. Spend on the card
 
-You buy groceries for NT$1,200 with the credit card.
+You buy groceries for NT$1,200 with the card.
 
 > **Type:** Expense
 > **Account:** Visa Platinum
@@ -39,23 +45,25 @@ You buy groceries for NT$1,200 with the credit card.
 > **Amount:** 1200
 
 After this transaction:
-- Visa Platinum outstanding debt: **3,200** (2,000 + 1,200)
+
+- Visa Platinum: **−3,200** (−2,000 − 1,200)
 - Net asset decreases by 1,200
 
 ---
 
 ### 2. More spending throughout the month
 
-You spend NT$850 on transport and NT$3,400 dining out, both on the credit card.
+You spend NT$850 on transport and NT$3,400 dining out, both on the card.
 
 After all spending:
-- Visa Platinum outstanding debt: **7,450**
+
+- Visa Platinum: **−7,450**
 
 ---
 
-### 3. Pay the credit card bill
+### 3. Pay the bill
 
-You pay NT$7,450 from your HSBC Savings account to clear the bill.
+You pay NT$7,450 from your HSBC Savings account to clear it.
 
 > **Type:** Transfer
 > **Category:** Credit Card Payment
@@ -64,30 +72,29 @@ You pay NT$7,450 from your HSBC Savings account to clear the bill.
 > **Amount:** 7450
 
 After this transaction:
+
 - HSBC Savings: decreases by 7,450
-- Visa Platinum outstanding debt: **0**
-- Net asset is unchanged (money just moved from bank to debt payoff)
+- Visa Platinum: **0**
+- Net asset is unchanged — money moved between two of your own accounts
 
 ---
 
 ## Partial Payments
 
-You can pay off only part of the balance. For example, if the bill is NT$7,450 but you only pay NT$5,000:
+Pay off only part of the balance and the remainder simply stays negative. If the balance is −7,450 and you transfer 5,000:
 
 > **Type:** Transfer
-> **Category:** Credit Card Payment
 > **From Account:** HSBC Savings
 > **To Account:** Visa Platinum
 > **Amount:** 5000
 
-Remaining debt on Visa Platinum: **2,450**
-This carries over into the next month automatically.
+Visa Platinum is left at **−2,450**, which carries into the next month automatically.
 
 ---
 
 ## Refunds and Returns
 
-For a returned credit card purchase, create an **Expense** on the same credit card account and enable **This is a refund**. PennyWallet stores it as a negative expense, displays it as a positive expense reversal, and reduces the card's outstanding debt.
+For a returned purchase, create an **Expense** on the same account and enable **This is a refund**. PennyWallet stores it as a negative expense, displays it as a positive expense reversal, and adds the money back to the account.
 
 > **Type:** Expense
 > **Account:** Visa Platinum
@@ -95,24 +102,24 @@ For a returned credit card purchase, create an **Expense** on the same credit ca
 > **Amount:** 1200
 > **Refund:** Enabled
 
-Refunds are not transfer categories in the current data model.
+---
+
+## Other Things You Can Now Do
+
+Because nothing is special-cased, combinations that used to be blocked all work:
+
+- Pay one card from another card
+- Transfer money *out of* a card (a cash advance) — the card goes further negative, the receiving account goes up
+- Record income directly into a card account
+- Let any cash or bank account go negative, for an overdraft or a loan
 
 ---
 
-## Key Rules
+## Net Asset
 
-- **Credit Card Payment From Account** must be Cash or Bank — you cannot pay one credit card with another
-- **Credit Card Payment To Account** must be a Credit Card
-- **Refunds** use Expense with the refund toggle, not Transfer
-- A credit card's balance **cannot go below zero** in normal usage (paying more than you owe is technically allowed but unusual)
+Net Asset = the sum of every account included in net asset.
 
----
+If you have NT$100,000 in savings and a card sitting at −5,000:
+→ Net Asset = 100,000 + (−5,000) = **95,000**
 
-## Net Asset and Credit Cards
-
-Net Asset = Cash + Bank accounts − Credit Card outstanding debt
-
-If you have NT$100,000 in savings and NT$5,000 credit card debt:
-→ Net Asset = 100,000 − 5,000 = **95,000**
-
-Archived credit card accounts can be included or excluded from net asset via the toggle in Settings.
+Archived accounts can be included or excluded via the toggle in Settings.

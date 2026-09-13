@@ -29,7 +29,7 @@ export default defineConfig({
       label: 'English',
       lang: 'en',
       title: 'PennyWallet',
-      description: 'Personal finance tracker Obsidian plugin — log expenses, income, transfers, and credit card repayments as plain Markdown files in your vault.',
+      description: 'Personal finance tracker Obsidian plugin — log expenses, income, and transfers as plain Markdown files in your vault.',
       themeConfig: {
         nav: [
           { text: 'Guide', link: '/getting-started' },
@@ -42,7 +42,7 @@ export default defineConfig({
               { text: 'Getting Started', link: '/getting-started' },
               { text: 'Accounts', link: '/accounts' },
               { text: 'Transactions', link: '/transactions' },
-              { text: 'Credit Card Workflow', link: '/credit-card-workflow' },
+              { text: 'Tracking a Credit Card', link: '/credit-card-workflow' },
               { text: 'Views', link: '/views' },
               { text: 'Settings', link: '/settings' },
               { text: 'URI Handler & iOS Shortcuts', link: '/uri-handler' },
@@ -78,7 +78,7 @@ export default defineConfig({
               { text: '快速開始', link: '/zh/getting-started' },
               { text: '帳戶', link: '/zh/accounts' },
               { text: '交易記錄', link: '/zh/transactions' },
-              { text: '信用卡流程', link: '/zh/credit-card-workflow' },
+              { text: '信用卡追蹤', link: '/zh/credit-card-workflow' },
               { text: '介面與檢視', link: '/zh/views' },
               { text: '設定', link: '/zh/settings' },
               { text: 'URI Handler 與 iOS 捷徑', link: '/zh/uri-handler' },

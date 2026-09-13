@@ -31,21 +31,18 @@ Represents a bank account, savings account, or e-wallet.
 
 ---
 
-### Credit Card
+### Accounts You Owe Money On
 
-Represents a credit card. The balance tracks **outstanding debt**, not available credit.
+There is no separate credit card type. A credit card is an ordinary account whose
+balance is **negative** — the amount you owe. Give it a negative Initial Balance,
+then:
 
-- Expenses **increase** the debt
-- Credit card payment transfers **decrease** the debt
-- Refund expenses **decrease** the debt
-- Displayed with a **−** sign in the Finance Overview (because it's money you owe)
-- Subtracted from net asset
+- Expenses on the card push the balance further down
+- A transfer into the card brings it back towards zero
+- Net asset adds every balance together, so a negative one subtracts automatically
 
-**Example:** Credit card with NT$4,500 outstanding → displays as `−4,500` in net asset
-
-> **Setting the initial balance:** Enter your current outstanding debt as a positive number.
-> If you owe NT$3,000, enter `3000`.
-> If your card is fully paid off, enter `0`.
+**Example:** a card with NT$4,500 outstanding has a balance of `−4,500`, and that is
+what it contributes to net asset.
 
 ---
 
@@ -83,6 +80,6 @@ If an account has **no transactions**, it can be deleted permanently.
 
 ## Net Asset Calculation
 
-Net Asset = (sum of all cash/bank balances) − (sum of all credit card outstanding debts)
+Net Asset = sum of every included account balance (negative balances subtract)
 
 Archived accounts are included if **Include in Net Assets** is toggled on.

@@ -12,7 +12,7 @@ import type { Transaction, MonthSummary } from '../../src/types'
 
 describe('parseRow', () => {
   it('parses a valid expense row', () => {
-    const line = '| 04/03 | expense | 玉山信用卡 | - | - | food | 午餐 | 250 |'
+    const line = '| 04/03 | expense | 玉山信用卡 | - | - | food | 午餐 | - | 250 | - |'
     const tx = parseRow(line)
     expect(tx).toEqual<Transaction>({
       date: '04/03',
@@ -27,7 +27,7 @@ describe('parseRow', () => {
   })
 
   it('parses a valid transfer row (dash fields become undefined)', () => {
-    const line = '| 04/30 | transfer | - | 玉山銀行 | 現金 | - | 提款 | 1000 |'
+    const line = '| 04/30 | transfer | - | 玉山銀行 | 現金 | - | 提款 | - | 1000 | - |'
     const tx = parseRow(line)
     expect(tx).toEqual<Transaction>({
       date: '04/30',
@@ -41,22 +41,8 @@ describe('parseRow', () => {
     })
   })
 
-  it('maps legacy type "payment" → transfer + credit_card_payment', () => {
-    const line = '| 04/30 | payment | - | 玉山銀行 | 玉山信用卡 | - | 還款 | 5000 |'
-    const tx = parseRow(line)
-    expect(tx?.type).toBe('transfer')
-    expect(tx?.category).toBe('credit_card_payment')
-  })
-
-  it('maps legacy type "repayment" → transfer + credit_card_payment', () => {
-    const line = '| 04/30 | repayment | - | 玉山銀行 | 玉山信用卡 | - | 還款 | 5000 |'
-    const tx = parseRow(line)
-    expect(tx?.type).toBe('transfer')
-    expect(tx?.category).toBe('credit_card_payment')
-  })
-
   it('note dash → empty string', () => {
-    const line = '| 04/03 | expense | 現金 | - | - | food | - | 100 |'
+    const line = '| 04/03 | expense | 現金 | - | - | food | - | - | 100 | - |'
     expect(parseRow(line)?.note).toBe('')
   })
 
@@ -66,17 +52,17 @@ describe('parseRow', () => {
   })
 
   it('returns null when amount is not a number', () => {
-    const line = '| 04/03 | expense | 現金 | - | - | food | 午餐 | abc |'
+    const line = '| 04/03 | expense | 現金 | - | - | food | 午餐 | - | abc | - |'
     expect(parseRow(line)).toBeNull()
   })
 
   it('parses decimal amounts', () => {
-    const line = '| 04/03 | expense | 現金 | - | - | food | 咖啡 | 49.5 |'
+    const line = '| 04/03 | expense | 現金 | - | - | food | 咖啡 | - | 49.5 | - |'
     expect(parseRow(line)?.amount).toBe(49.5)
   })
 
   it('parses negative amount (refund)', () => {
-    const line = '| 04/15 | expense | Bank | - | - | food | 退款 | -400 |'
+    const line = '| 04/15 | expense | Bank | - | - | food | 退款 | - | -400 | - |'
     const tx = parseRow(line)
     expect(tx?.amount).toBe(-400)
     expect(tx?.type).toBe('expense')
@@ -95,10 +81,10 @@ netAsset: 0
 
 ## 2026-04
 
-| Date | Type | Wallet | From | To | Category | Note | Amount |
-|------|------|--------|------|----|----------|------|--------|
-| 04/03 | expense | 現金 | - | - | food | 午餐 | 250 |
-| 04/10 | income | 玉山銀行 | - | - | salary | 薪資 | 60000 |
+| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |
+|------|------|--------|------|----|----------|------|------|--------|-----------|
+| 04/03 | expense | 現金 | - | - | food | 午餐 | - | 250 | - |
+| 04/10 | income | 玉山銀行 | - | - | salary | 薪資 | - | 60000 | - |
 `
 
   it('returns all transactions from a well-formed file', () => {
@@ -109,7 +95,7 @@ netAsset: 0
   })
 
   it('recognises Chinese table header (| 日期)', () => {
-    const content = `## 2026-04\n\n| 日期 | 類型 | 帳戶 | 從 | 到 | 分類 | 備註 | 金額 |\n|------|------|--------|------|----|----------|------|--------|\n| 04/03 | expense | 現金 | - | - | food | 午餐 | 100 |\n`
+    const content = `## 2026-04\n\n| 日期 | 類型 | 帳戶 | 從 | 到 | 分類 | 備註 | 標籤 | 金額 | 建立時間 |\n|------|------|--------|------|----|----------|------|------|--------|-----------|\n| 04/03 | expense | 現金 | - | - | food | 午餐 | - | 100 | - |\n`
     const txs = parseMonthFile(content)
     expect(txs).toHaveLength(1)
   })
@@ -119,13 +105,13 @@ netAsset: 0
   })
 
   it('stops parsing on blank line after table', () => {
-    const content = `| Date | Type | Wallet | From | To | Category | Note | Amount |
-|------|------|--------|------|----|----------|------|--------|
-| 04/01 | expense | 現金 | - | - | food | a | 10 |
+    const content = `| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |
+|------|------|--------|------|----|----------|------|------|--------|-----------|
+| 04/01 | expense | 現金 | - | - | food | a | - | 10 | - |
 
-| Date | Type | Wallet | From | To | Category | Note | Amount |
-|------|------|--------|------|----|----------|------|--------|
-| 04/02 | expense | 現金 | - | - | food | b | 20 |
+| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |
+|------|------|--------|------|----|----------|------|------|--------|-----------|
+| 04/02 | expense | 現金 | - | - | food | b | - | 20 | - |
 `
     // Only the first table block should be parsed (blank line terminates)
     const txs = parseMonthFile(content)
@@ -173,31 +159,6 @@ describe('parseRow — tags', () => {
     expect(tx?.amount).toBe(250)
   })
 
-  it('parses old 9-col row (no tags, has createdAt) correctly', () => {
-    // col[7] is numeric → old format: amount=col[7], createdAt=col[8]
-    const line = '| 04/03 | expense | 玉山 | - | - | food | 午餐 | 250 | 2026-04-03T10:00:00.000Z |'
-    const tx = parseRow(line)
-    expect(tx?.tags).toBeUndefined()
-    expect(tx?.amount).toBe(250)
-    expect(tx?.createdAt).toBe('2026-04-03T10:00:00.000Z')
-  })
-
-  it('parses migrated 9-col row (has tags, no createdAt)', () => {
-    // col[7] is non-numeric → new format: tags=col[7], amount=col[8]
-    const line = '| 04/03 | expense | 玉山 | - | - | food | 午餐 | 通勤 | 250 |'
-    const tx = parseRow(line)
-    expect(tx?.tags).toEqual(['通勤'])
-    expect(tx?.amount).toBe(250)
-    expect(tx?.createdAt).toBeUndefined()
-  })
-
-  it('parses old 8-col row (no tags, no createdAt)', () => {
-    const line = '| 04/03 | expense | 玉山 | - | - | food | 午餐 | 250 |'
-    const tx = parseRow(line)
-    expect(tx?.tags).toBeUndefined()
-    expect(tx?.amount).toBe(250)
-    expect(tx?.createdAt).toBeUndefined()
-  })
 })
 
 describe('formatRow — tags', () => {

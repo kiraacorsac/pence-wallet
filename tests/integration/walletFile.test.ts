@@ -272,13 +272,13 @@ describe('getWalletBalanceTrend', () => {
     expect(trend.get('Bank')?.get('2026-02')).toBe(800)   // 500 + 300
   })
 
-  it('excludes credit card wallets', async () => {
+  it('excludes archived wallets', async () => {
     const config = {
       ...DEFAULT_CONFIG,
       folderName: 'Ledgers',
       wallets: [
         { name: 'Cash', type: 'cash' as const, initialBalance: 0, status: 'active' as const, includeInNetAsset: true },
-        { name: 'Credit', type: 'creditCard' as const, initialBalance: 0, status: 'active' as const, includeInNetAsset: true },
+        { name: 'Old', type: 'bank' as const, initialBalance: 0, status: 'archived' as const, includeInNetAsset: true },
       ],
     }
     const { app } = createMockApp({ '.penny-wallet.json': JSON.stringify(config) })
@@ -287,7 +287,7 @@ describe('getWalletBalanceTrend', () => {
 
     const trend = await wf.getWalletBalanceTrend(['2026-01'])
     expect(trend.has('Cash')).toBe(true)
-    expect(trend.has('Credit')).toBe(false)
+    expect(trend.has('Old')).toBe(false)
   })
 
   it('returns empty balance history when no month files exist', async () => {

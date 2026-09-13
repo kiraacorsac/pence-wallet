@@ -14,7 +14,7 @@ function makeWalletFile(wallets: Wallet[]): WalletFile {
 
 const CASH: Wallet = { name: 'Cash', type: 'cash', initialBalance: 1000, status: 'active', includeInNetAsset: true }
 const BANK: Wallet = { name: 'Bank', type: 'bank', initialBalance: 5000, status: 'active', includeInNetAsset: true }
-const CARD: Wallet = { name: 'Card', type: 'creditCard', initialBalance: 0, status: 'active', includeInNetAsset: true }
+const CARD: Wallet = { name: 'Card', type: 'bank', initialBalance: 0, status: 'active', includeInNetAsset: true }
 
 // ── computeWalletBalances ─────────────────────────────────────────────────────
 
@@ -26,18 +26,39 @@ describe('computeWalletBalances', () => {
     expect(result[0].balance).toBe(4800)
   })
 
-  it('expense on creditCard increases debt (balance increases)', () => {
-    const wf = makeWalletFile([CARD])
-    const txs: Transaction[] = [{ date: '04/01', type: 'expense', wallet: 'Card', category: 'food', note: '', amount: 300 }]
-    const result = wf.computeWalletBalances(txs)
-    expect(result[0].balance).toBe(300)
-  })
-
   it('income on bank increases balance', () => {
     const wf = makeWalletFile([BANK])
     const txs: Transaction[] = [{ date: '04/01', type: 'income', wallet: 'Bank', category: 'salary', note: '', amount: 10000 }]
     const result = wf.computeWalletBalances(txs)
     expect(result[0].balance).toBe(15000)
+  })
+
+  it('expense drives an account negative', () => {
+    const wf = makeWalletFile([CARD])
+    const txs: Transaction[] = [{ date: '04/01', type: 'expense', wallet: 'Card', category: 'Food', note: '', amount: 300 }]
+    expect(wf.computeWalletBalances(txs)[0].balance).toBe(-300)
+  })
+
+  it('transfer into a negative account brings it back towards zero', () => {
+    const wf = makeWalletFile([BANK, CARD])
+    const txs: Transaction[] = [
+      { date: '04/01', type: 'expense', wallet: 'Card', category: 'Food', note: '', amount: 500 },
+      { date: '04/15', type: 'transfer', category: 'Credit Card Payment', fromWallet: 'Bank', toWallet: 'Card', note: '', amount: 500 },
+    ]
+    const result = wf.computeWalletBalances(txs)
+    expect(result.find(r => r.wallet.name === 'Bank')!.balance).toBe(4500)
+    expect(result.find(r => r.wallet.name === 'Card')!.balance).toBe(0)
+  })
+
+  it('the category never changes how a transaction moves money', () => {
+    const wf = makeWalletFile([BANK, CASH])
+    for (const category of ['Credit Card Payment', 'Account Transfer', 'Anything', undefined]) {
+      const result = wf.computeWalletBalances([
+        { date: '04/01', type: 'transfer', category, fromWallet: 'Bank', toWallet: 'Cash', note: '', amount: 500 },
+      ])
+      expect(result.find(r => r.wallet.name === 'Bank')!.balance).toBe(4500)
+      expect(result.find(r => r.wallet.name === 'Cash')!.balance).toBe(1500)
+    }
   })
 
   it('transfer: fromWallet decreases, toWallet increases', () => {
@@ -50,28 +71,13 @@ describe('computeWalletBalances', () => {
     expect(cash.balance).toBe(1500)
   })
 
-  it('credit_card_payment (was repayment): bank decreases, creditCard debt decreases', () => {
-    const wf = makeWalletFile([BANK, CARD])
-    // First create some credit card debt
-    const txs: Transaction[] = [
-      { date: '04/01', type: 'expense', wallet: 'Card', category: 'food', note: '', amount: 500 },
-      { date: '04/15', type: 'transfer', category: 'credit_card_payment', fromWallet: 'Bank', toWallet: 'Card', note: '', amount: 500 },
-    ]
-    const result = wf.computeWalletBalances(txs)
-    const bank = result.find(r => r.wallet.name === 'Bank')!
-    const card = result.find(r => r.wallet.name === 'Card')!
-    expect(bank.balance).toBe(4500)   // 5000 - 500
-    expect(card.balance).toBe(0)      // 0 + 500 - 500
-  })
-
-  it('negative expense on creditCard reduces debt', () => {
-    const wf = makeWalletFile([CARD])
-    const txs: Transaction[] = [
-      { date: '04/01', type: 'expense', wallet: 'Card', category: 'shopping', note: '', amount: 300 },
-      { date: '04/02', type: 'expense', wallet: 'Card', category: 'shopping', note: '退款', amount: -100 },
-    ]
-    const result = wf.computeWalletBalances(txs)
-    expect(result[0].balance).toBe(200) // 0 + 300 - 100
+  it('transfer between non-card wallets is unaffected by the category', () => {
+    const wf = makeWalletFile([BANK, CASH])
+    const result = wf.computeWalletBalances([
+      { date: '04/01', type: 'transfer', category: 'Credit Card Payment', fromWallet: 'Bank', toWallet: 'Cash', note: '', amount: 500 },
+    ])
+    expect(result.find(r => r.wallet.name === 'Bank')!.balance).toBe(4500)
+    expect(result.find(r => r.wallet.name === 'Cash')!.balance).toBe(1500)
   })
 
   it('negative expense on bank restores balance', () => {
@@ -82,18 +88,6 @@ describe('computeWalletBalances', () => {
     ]
     const result = wf.computeWalletBalances(txs)
     expect(result[0].balance).toBe(4700) // 5000 - 500 + 200
-  })
-
-  it('transfer credit_card_refund no longer has special case (treated as normal transfer)', () => {
-    const wf = makeWalletFile([BANK, CARD])
-    // Old-style record still parsed, now processed as regular transfer (from-, to+)
-    const txs: Transaction[] = [
-      { date: '04/01', type: 'transfer', category: 'credit_card_refund', fromWallet: 'Card', toWallet: 'Card', note: '', amount: 100 },
-    ]
-    const result = wf.computeWalletBalances(txs)
-    const card = result.find(r => r.wallet.name === 'Card')!
-    // from=Card: balance -= 100; to=Card: balance += 100 → net 0
-    expect(card.balance).toBe(0)
   })
 
   it('unknown wallet in transaction is silently ignored', () => {
@@ -114,15 +108,24 @@ describe('computeWalletBalances', () => {
   })
 
   it('preserves wallet order from config', () => {
-    const wf = makeWalletFile([CARD, BANK, CASH])
+    const wf = makeWalletFile([CASH, BANK])
     const result = wf.computeWalletBalances([])
-    expect(result.map(r => r.wallet.type)).toEqual(['creditCard', 'bank', 'cash'])
+    expect(result.map(r => r.wallet.name)).toEqual(['Cash', 'Bank'])
   })
 })
 
 // ── computeNetAsset ───────────────────────────────────────────────────────────
 
 describe('computeNetAsset', () => {
+  it('a negative balance subtracts from net asset', () => {
+    const wf = makeWalletFile([BANK, CARD])
+    const balances: WalletBalance[] = [
+      { wallet: BANK, balance: 5000 },
+      { wallet: CARD, balance: -300 },
+    ]
+    expect(wf.computeNetAsset(balances)).toBe(4700)
+  })
+
   it('sums bank and cash balances', () => {
     const wf = makeWalletFile([BANK, CASH])
     const balances: WalletBalance[] = [
@@ -130,15 +133,6 @@ describe('computeNetAsset', () => {
       { wallet: CASH, balance: 1000 },
     ]
     expect(wf.computeNetAsset(balances)).toBe(6000)
-  })
-
-  it('subtracts creditCard debt from net asset', () => {
-    const wf = makeWalletFile([BANK, CARD])
-    const balances: WalletBalance[] = [
-      { wallet: BANK, balance: 5000 },
-      { wallet: CARD, balance: 300 }, // 300 in debt
-    ]
-    expect(wf.computeNetAsset(balances)).toBe(4700)
   })
 
   it('excludes wallet with includeInNetAsset: false', () => {
@@ -149,16 +143,6 @@ describe('computeNetAsset', () => {
       { wallet: archived, balance: 9999 }, // should be excluded
     ]
     expect(wf.computeNetAsset(balances)).toBe(1000)
-  })
-
-  it('excludes creditCard with includeInNetAsset: false', () => {
-    const hiddenCard: Wallet = { ...CARD, name: 'OldCard', includeInNetAsset: false }
-    const wf = makeWalletFile([BANK, hiddenCard])
-    const balances: WalletBalance[] = [
-      { wallet: BANK, balance: 5000 },
-      { wallet: hiddenCard, balance: 800 }, // should be excluded, not subtracted
-    ]
-    expect(wf.computeNetAsset(balances)).toBe(5000)
   })
 
   it('returns 0 for empty balances', () => {
@@ -191,7 +175,7 @@ describe('computeSummary', () => {
     const wf = makeWalletFile([])
     const txs: Transaction[] = [
       { date: '04/01', type: 'transfer', fromWallet: 'Bank', toWallet: 'Cash', note: '', amount: 1000 },
-      { date: '04/02', type: 'transfer', category: 'credit_card_payment', fromWallet: 'Bank', toWallet: 'Card', note: '', amount: 500 },
+      { date: '04/02', type: 'transfer', category: 'Credit Card Payment', fromWallet: 'Bank', toWallet: 'Card', note: '', amount: 500 },
     ]
     expect(wf.computeSummary(txs)).toEqual({ income: 0, expense: 0, netAsset: 0 })
   })

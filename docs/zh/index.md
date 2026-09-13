@@ -4,7 +4,7 @@ layout: home
 hero:
   name: PennyWallet
   text: Obsidian 個人財務記帳外掛
-  tagline: 以純 Markdown 檔案記錄支出、收入、移轉、信用卡繳費與退款，資料永遠在你的 vault 裡。
+  tagline: 以純 Markdown 檔案記錄支出、收入、移轉與退款，資料永遠在你的 vault 裡。
   image:
     src: /finance-overview.png
     alt: PennyWallet dashboard screenshot
@@ -20,7 +20,7 @@ features:
   - title: 純 Markdown 儲存
     details: 所有資料以 .md 檔案與 .json 設定檔存放，無專有資料庫，無二進位檔案，完全可攜、與 Git 相容。
   - title: 三種交易類型
-    details: 支出、收入與移轉；信用卡繳費是移轉分類，退款會記為負支出。
+    details: 支出、收入與移轉；退款會記為負支出。
   - title: iOS 捷徑支援
     details: 透過 URI handler 從 iOS 捷徑或任何可開啟 URL 的 App 預填交易表單，一鍵快速記帳。
   - title: 帳本總覽與圖表

@@ -133,12 +133,7 @@ describe('repairOrphanedWallet', () => {
     folderName: 'PW',
     decimalPlaces: 0,
     options: {
-      types: { default: [], custom: [] },
-      categories: {
-        expense: { default: [], custom: [] },
-        income: { default: [], custom: [] },
-        transfer: { default: [], custom: [] },
-      },
+      categories: { expense: [], income: [], transfer: [] },
     },
     tags: [],
     autoValidateOnLoad: true,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseAmountForEdit, getCategoryOptions, addTagToList, validateTransactionForm, getTransferWalletCandidates, type TransactionFormState } from '../../src/modal/transactionState'
-import type { PennyWalletConfig, Wallet } from '../../src/types'
+import { parseAmountForEdit, getCategoryOptions, addTagToList, validateTransactionForm, type TransactionFormState } from '../../src/modal/transactionState'
+import type { PennyWalletConfig } from '../../src/types'
 
 describe('parseAmountForEdit', () => {
   it('positive integer → display string + isRefund=false', () => {
@@ -32,39 +32,34 @@ describe('getCategoryOptions', () => {
     tags: [],
     options: {
       categories: {
-        expense: { default: ['food', 'transport'], custom: ['gift'] },
-        income: { default: ['salary'], custom: [] },
-        transfer: { default: ['credit_card_payment'], custom: ['custom_xfer'] },
+        expense: ['Food', 'Transport', 'Gift'],
+        income: ['Salary'],
+        transfer: ['Credit Card Payment', 'Custom Transfer'],
       },
     },
   } as unknown as PennyWalletConfig
 
-  it('expense type → default keys + custom values', () => {
+  it('expense type → the configured list, key === label', () => {
     const result = getCategoryOptions(baseConfig, 'expense')
-    expect(result.map(r => r.key)).toEqual(['food', 'transport', 'gift'])
-    expect(result.find(r => r.key === 'gift')?.label).toBe('gift')
+    expect(result.map(r => r.key)).toEqual(['Food', 'Transport', 'Gift'])
+    expect(result.every(r => r.key === r.label)).toBe(true)
   })
 
-  it('income type → only default keys + empty custom', () => {
+  it('income type → returns income categories', () => {
     const result = getCategoryOptions(baseConfig, 'income')
-    expect(result.map(r => r.key)).toEqual(['salary'])
+    expect(result.map(r => r.key)).toEqual(['Salary'])
   })
 
   it('transfer type → returns transfer categories', () => {
     const result = getCategoryOptions(baseConfig, 'transfer')
-    expect(result.map(r => r.key)).toEqual(['credit_card_payment', 'custom_xfer'])
+    expect(result.map(r => r.key)).toEqual(['Credit Card Payment', 'Custom Transfer'])
   })
 
-  it('empty default + non-empty custom → only custom', () => {
+  it('empty list → no options', () => {
     const cfg = { ...baseConfig,
-      options: { categories: {
-        expense: { default: [], custom: ['only_custom'] },
-        income: { default: [], custom: [] },
-        transfer: { default: [], custom: [] },
-      } },
+      options: { categories: { expense: [], income: [], transfer: [] } },
     } as unknown as PennyWalletConfig
-    const result = getCategoryOptions(cfg, 'expense')
-    expect(result.map(r => r.key)).toEqual(['only_custom'])
+    expect(getCategoryOptions(cfg, 'expense')).toEqual([])
   })
 })
 
@@ -126,7 +121,7 @@ describe('validateTransactionForm', () => {
   const config0dp: PennyWalletConfig = {
     wallets: [
       { name: 'cash', type: 'cash', status: 'active', initialBalance: 0, includeInNetAsset: true },
-      { name: 'visa', type: 'creditCard', status: 'active', initialBalance: 0, includeInNetAsset: true },
+      { name: 'visa', type: 'bank', status: 'active', initialBalance: -500, includeInNetAsset: true },
       { name: 'bank', type: 'bank', status: 'active', initialBalance: 0, includeInNetAsset: true },
     ],
     defaultWallet: 'cash',
@@ -210,28 +205,16 @@ describe('validateTransactionForm', () => {
     expect(validateTransactionForm(s, config0dp)).toEqual({ ok: false, errorKey: 'err.toWalletRequired' })
   })
 
-  it('cc_payment from creditCard → fromMustNotBeCreditCard', () => {
+  it('credit card payment carries no wallet constraints', () => {
     const s: TransactionFormState = {
       ...validExpenseState,
       type: 'transfer',
       wallet: '',
       fromWallet: 'visa',
-      toWallet: 'visa',
-      category: 'credit_card_payment',
-    }
-    expect(validateTransactionForm(s, config0dp)).toEqual({ ok: false, errorKey: 'err.fromMustNotBeCreditCard' })
-  })
-
-  it('cc_payment to non-creditCard → toMustBeCreditCard', () => {
-    const s: TransactionFormState = {
-      ...validExpenseState,
-      type: 'transfer',
-      wallet: '',
-      fromWallet: 'cash',
       toWallet: 'bank',
-      category: 'credit_card_payment',
+      category: 'Credit Card Payment',
     }
-    expect(validateTransactionForm(s, config0dp)).toEqual({ ok: false, errorKey: 'err.toMustBeCreditCard' })
+    expect(validateTransactionForm(s, config0dp)).toEqual({ ok: true })
   })
 
   it('transfer same wallet → sameWallet', () => {
@@ -315,52 +298,5 @@ describe('buildTransactionPayload', () => {
   it('decimal amount preserved as float', () => {
     const tx = buildTransactionPayload({ ...baseState, amount: '12.5' })
     expect(tx.amount).toBe(12.5)
-  })
-})
-
-describe('getTransferWalletCandidates', () => {
-  const wallets: Wallet[] = [
-    { name: 'cash', type: 'cash', status: 'active', initialBalance: 0, includeInNetAsset: true },
-    { name: 'bank', type: 'bank', status: 'active', initialBalance: 0, includeInNetAsset: true },
-    { name: 'visa', type: 'creditCard', status: 'active', initialBalance: 0, includeInNetAsset: true },
-    { name: 'mc', type: 'creditCard', status: 'active', initialBalance: 0, includeInNetAsset: true },
-  ]
-
-  it('cc_payment → from excludes creditCard, to only creditCard', () => {
-    const { fromCandidates, toCandidates } = getTransferWalletCandidates(wallets, 'credit_card_payment')
-    expect(fromCandidates.map(w => w.name)).toEqual(['cash', 'bank'])
-    expect(toCandidates.map(w => w.name)).toEqual(['visa', 'mc'])
-  })
-
-  it('non-cc_payment category → from = to = all wallets', () => {
-    const { fromCandidates, toCandidates } = getTransferWalletCandidates(wallets, 'other')
-    expect(fromCandidates).toEqual(wallets)
-    expect(toCandidates).toEqual(wallets)
-  })
-
-  it('empty wallets → empty candidates', () => {
-    const { fromCandidates, toCandidates } = getTransferWalletCandidates([], 'credit_card_payment')
-    expect(fromCandidates).toEqual([])
-    expect(toCandidates).toEqual([])
-  })
-
-  it('cc_payment with only creditCards → empty from, all in to', () => {
-    const cards = wallets.filter(w => w.type === 'creditCard')
-    const { fromCandidates, toCandidates } = getTransferWalletCandidates(cards, 'credit_card_payment')
-    expect(fromCandidates).toEqual([])
-    expect(toCandidates.map(w => w.name)).toEqual(['visa', 'mc'])
-  })
-
-  it('cc_payment with no creditCards → all in from, empty to', () => {
-    const noCards = wallets.filter(w => w.type !== 'creditCard')
-    const { fromCandidates, toCandidates } = getTransferWalletCandidates(noCards, 'credit_card_payment')
-    expect(fromCandidates.map(w => w.name)).toEqual(['cash', 'bank'])
-    expect(toCandidates).toEqual([])
-  })
-
-  it('empty category string → treated as non-cc_payment', () => {
-    const { fromCandidates, toCandidates } = getTransferWalletCandidates(wallets, '')
-    expect(fromCandidates).toEqual(wallets)
-    expect(toCandidates).toEqual(wallets)
   })
 })

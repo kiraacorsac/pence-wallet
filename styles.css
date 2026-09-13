@@ -1373,7 +1373,6 @@ button.pw-mobile-calculator-done {
 .pw-wallet-badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
 .pw-badge-cash       { background: var(--pw-income-tint); color: var(--pw-cash); }
 .pw-badge-bank       { background: var(--pw-bank-tint); color: var(--pw-bank); }
-.pw-badge-creditCard { background: var(--pw-credit-tint); color: var(--pw-credit); }
 
 .pw-wallet-name {
   color: var(--text-normal);
@@ -1676,7 +1675,6 @@ button.pw-pill {
 .pw-pill-color-transfer  { --pw-pill-color: var(--pw-transfer);          --pw-pill-tint: var(--pw-transfer-tint-strong); }
 .pw-pill-color-bank      { --pw-pill-color: var(--pw-bank);              --pw-pill-tint: var(--pw-bank-tint-strong); }
 .pw-pill-color-cash      { --pw-pill-color: var(--pw-cash);              --pw-pill-tint: var(--pw-cash-tint-strong); }
-.pw-pill-color-credit    { --pw-pill-color: var(--pw-credit);            --pw-pill-tint: var(--pw-credit-tint-strong); }
 .pw-pill-color-neutral   { --pw-pill-color: var(--interactive-accent);   --pw-pill-tint: var(--pw-accent-tint-strong); }
 
 /* Hover (only when not active) — 8% same-color tint as a pre-active hint */

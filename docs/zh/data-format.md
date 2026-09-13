@@ -39,7 +39,7 @@ netAsset: 0
 | 04/11 | expense   | 玉山信用卡 | -       | -        | shopping | 退貨     | -           | -320   | 2026-04-11T16:20:00.000Z |
 | 04/10 | expense   | 現金       | -       | -        | food     | 午餐     | work        | 280    | 2026-04-10T12:05:00.000Z |
 | 04/05 | transfer  | -          | 玉山銀行 | 現金     | -        | 提款     | -           | 8000   | 2026-04-05T09:00:00.000Z |
-| 04/28 | transfer  | -          | 玉山銀行 | 玉山信用卡 | credit_card_payment | 繳卡費 | - | 5000 | 2026-04-28T10:00:00.000Z |
+| 04/28 | transfer  | -          | 玉山銀行 | 玉山信用卡 | 信用卡繳費 | 繳卡費 | - | 5000 | 2026-04-28T10:00:00.000Z |
 ```
 
 ### 欄位說明
@@ -51,7 +51,7 @@ netAsset: 0
 | Wallet | 帳戶名稱 | `-` |
 | From | `-` | 來源帳戶 |
 | To | `-` | 目標帳戶 |
-| Category | 分類 key 或自訂名稱 | 移轉分類 key 或自訂名稱 |
+| Category | 設定中顯示的分類名稱，或 `-` | 移轉分類名稱，或 `-` |
 | Note | 選填文字 | 選填文字 |
 | Tags | 逗號分隔標籤或 `-` | 逗號分隔標籤或 `-` |
 | Amount | 正數；退款支出使用負數 | 正數 |
@@ -81,7 +81,7 @@ netAsset: 0
     },
     {
       "name": "玉山信用卡",
-      "type": "creditCard",
+      "type": "bank",
       "initialBalance": 2000,
       "status": "active",
       "includeInNetAsset": true
@@ -91,11 +91,10 @@ netAsset: 0
   "folderName": "PennyWallet",
   "decimalPlaces": 0,
   "options": {
-    "types": { "default": ["expense", "income", "transfer"], "custom": [] },
     "categories": {
-      "expense": { "default": ["food", "clothing", "housing", "transport", "education", "entertainment", "shopping", "medical", "cash_expense", "insurance", "fees", "tax"], "custom": ["咖啡"] },
-      "income":  { "default": ["salary", "interest", "side_income", "bonus", "lottery", "rent", "cashback", "dividend", "investment_profit", "insurance_income", "pension"], "custom": [] },
-      "transfer": { "default": ["account_transfer", "credit_card_payment", "investment_trade"], "custom": [] }
+      "expense": ["飲食", "服飾", "住家", "交通", "學習", "休閒娛樂", "購物", "醫療", "現金消費", "保險", "費用／手續費", "稅金", "咖啡"],
+      "income": ["薪資", "利息所得", "兼職", "獎金", "發票／彩券中獎", "租金", "優惠回饋", "股利", "投資獲利", "保險理賠", "退休金"],
+      "transfer": ["帳戶互轉", "信用卡繳費", "投資買賣"]
     }
   },
   "tags": [],

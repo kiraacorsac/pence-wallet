@@ -1,6 +1,6 @@
 # PennyWallet
 
-A personal finance tracker plugin for [Obsidian](https://obsidian.md). Log expenses, income, transfers, credit card payments, and refunds — all stored as plain Markdown tables in your vault.
+A personal finance tracker plugin for [Obsidian](https://obsidian.md). Log expenses, income, transfers, and refunds — all stored as plain Markdown tables in your vault.
 
 **Documentation:** [English](https://twrusstw.github.io/penny-wallet/) · [繁體中文](https://twrusstw.github.io/penny-wallet/zh/)
 
@@ -9,7 +9,7 @@ A personal finance tracker plugin for [Obsidian](https://obsidian.md). Log expen
 - **Finance overview** — monthly income / expense summary, 6-month income/expense chart, and category pie charts
 - **Transactions** — multi-select type and wallet filters, category and account dropdowns, date range, keyword search, and sticky subtotals
 - **Assets** — 3 / 6 / 12-month range selector, account balances, net asset trend, savings rate, and asset allocation pie
-- **Multiple account types** — cash, bank account, credit card (with debt tracking)
+- **Cash and bank accounts** — any account can hold a negative balance, so a credit card is just an account you owe money on
 - **Custom categories** — add your own expense and income categories
 - **Mobile-friendly entry** — touch-optimized transaction form with bottom-sheet pickers and an on-screen calculator
 - **iOS Shortcuts support** — add transactions via URI without opening Obsidian
@@ -48,11 +48,11 @@ A personal finance tracker plugin for [Obsidian](https://obsidian.md). Log expen
 
 | Type | Description |
 |------|-------------|
-| **Expense** | Money out from cash / bank / credit card |
+| **Expense** | Money out from any account |
 | **Income** | Money received into an account |
-| **Transfer** | Move money between accounts, including credit card payments |
+| **Transfer** | Move money between accounts, including paying off a credit card |
 
-Credit card accounts track outstanding debt. Expenses increase the debt; credit card payment transfers reduce it. Refunds are stored as negative expenses and shown as positive expense reversals. Net asset calculation automatically subtracts credit card debt.
+Every account follows one rule: expenses subtract, income adds, and a transfer moves the amount from one account to the other. An account can go negative, which is how a credit card's outstanding debt is tracked, and net asset simply adds every balance together. Refunds are stored as negative expenses and shown as positive expense reversals.
 
 ## Adding transactions
 

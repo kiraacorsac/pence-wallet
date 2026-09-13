@@ -221,10 +221,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     const config = this.walletFile.getConfig()
     const wb = walletBalances.find(b => b.wallet.name === wallet.name)
     const currentBalance = wb?.balance ?? wallet.initialBalance
-    const isDebt = wallet.type === 'creditCard'
-    const displayBalance = isDebt
-      ? `${t('settings.creditDebtPrefix')}${currentBalance.toLocaleString()}`
-      : currentBalance.toLocaleString()
+    const displayBalance = currentBalance.toLocaleString()
 
     const row = createDiv('pw-wallet-row')
 
@@ -238,7 +235,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     info.createSpan({ text: wallet.name, cls: 'pw-wallet-row-name' })
     info.createSpan({ text: t(`label.walletType.${wallet.type}`), cls: `pw-wallet-badge pw-badge-${wallet.type}` })
 
-    row.createSpan({ text: displayBalance, cls: `pw-wallet-row-balance${isDebt ? ' is-debt' : ''}` })
+    row.createSpan({ text: displayBalance, cls: `pw-wallet-row-balance${currentBalance < 0 ? ' is-debt' : ''}` })
 
     const actions = row.createDiv('pw-wallet-row-actions')
 
@@ -318,7 +315,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     const typeField = formEl.createDiv('pw-add-wallet-field')
     typeField.createEl('label', { text: t('settings.walletType'), cls: 'pw-setting-input-subtitle' })
     const typeSelect = typeField.createEl('select', { cls: 'pw-add-wallet-input' })
-    const walletTypes: WalletType[] = ['cash', 'bank', 'creditCard']
+    const walletTypes: WalletType[] = ['cash', 'bank']
     for (const wt of walletTypes) {
       typeSelect.createEl('option', { value: wt, text: t(`label.walletType.${wt}`) })
     }
@@ -331,13 +328,8 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     balanceInput.addEventListener('input', () => { balance = parseFloat(balanceInput.value) || 0 })
 
     const balanceHintEl = cardEl.createDiv('pw-balance-hint')
-    const updateBalanceHint = () => {
-      balanceHintEl.textContent = type === 'creditCard'
-        ? t('settings.creditBalanceHint')
-        : t('settings.cashBankBalanceHint')
-    }
-    typeSelect.addEventListener('change', () => { type = typeSelect.value as WalletType; updateBalanceHint() })
-    updateBalanceHint()
+    balanceHintEl.textContent = t('settings.balanceHint')
+    typeSelect.addEventListener('change', () => { type = typeSelect.value as WalletType })
 
     return {
       getName: () => name,
@@ -371,8 +363,6 @@ export class PennyWalletSettingTab extends PluginSettingTab {
       const balance = form.getBalance()
       if (!name) { new Notice(t('err.walletNameEmpty')); return }
       if (config.wallets.some(w => w.name === name)) { new Notice(t('err.walletNameDuplicate')); return }
-      if ((type === 'cash' || type === 'bank') && balance < 0) { new Notice(t('err.cashBankNegativeBalance')); return }
-      if (type === 'creditCard' && balance < 0) { new Notice(t('err.creditNegativeBalance')); return }
       const newWallet: Wallet = { name, type, initialBalance: balance, status: 'active', includeInNetAsset: true }
       this.walletFile.updateConfig({ wallets: [...config.wallets, newWallet] })
       await this.walletFile.saveConfig()
@@ -391,19 +381,18 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName(t('settings.customCategories')).setHeading()
     const cardEl = containerEl.createDiv('pw-card pw-category-card')
 
-    const expenseCustom = config.options.categories.expense.custom
-    const incomeCustom = config.options.categories.income.custom
-    const transferCustom = config.options.categories.transfer.custom
+    const expense = config.options.categories.expense
+    const income = config.options.categories.income
+    const transfer = config.options.categories.transfer
 
     this.renderCategorySection(
       cardEl,
       t('settings.expenseCategories'),
-      expenseCustom,
-      [...incomeCustom, ...transferCustom],
-      config.options.categories.expense.default,
+      expense,
+      [...income, ...transfer],
       async (updated) => {
         const scrollTop = this.getSettingsScrollTop()
-        this.walletFile.updateCustomCategories('expense', updated)
+        this.walletFile.updateCategories('expense', updated)
         await this.walletFile.saveConfig()
         this.app.workspace.trigger('penny-wallet:refresh')
         this.display(scrollTop)
@@ -415,12 +404,11 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     this.renderCategorySection(
       cardEl,
       t('settings.incomeCategories'),
-      incomeCustom,
-      [...expenseCustom, ...transferCustom],
-      config.options.categories.income.default,
+      income,
+      [...expense, ...transfer],
       async (updated) => {
         const scrollTop = this.getSettingsScrollTop()
-        this.walletFile.updateCustomCategories('income', updated)
+        this.walletFile.updateCategories('income', updated)
         await this.walletFile.saveConfig()
         this.app.workspace.trigger('penny-wallet:refresh')
         this.display(scrollTop)
@@ -432,12 +420,11 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     this.renderCategorySection(
       cardEl,
       t('settings.transferCategories'),
-      transferCustom,
-      [...expenseCustom, ...incomeCustom],
-      config.options.categories.transfer.default,
+      transfer,
+      [...expense, ...income],
       async (updated) => {
         const scrollTop = this.getSettingsScrollTop()
-        this.walletFile.updateCustomCategories('transfer', updated)
+        this.walletFile.updateCategories('transfer', updated)
         await this.walletFile.saveConfig()
         this.app.workspace.trigger('penny-wallet:refresh')
         this.display(scrollTop)
@@ -450,7 +437,6 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     title: string,
     categories: string[],
     otherCategories: string[],
-    defaultKeys: readonly string[],
     onChange: (updated: string[]) => void | Promise<void>,
   ) {
     container.createEl('div', { text: title, cls: 'pw-setting-input-subtitle' })
@@ -478,7 +464,6 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     addBtn.addEventListener('click', () => {
       const val = input.value.trim()
       if (!val) return
-      if (defaultKeys.includes(val))     { new Notice(t('err.categoryExists')); return }
       if (categories.includes(val))      { new Notice(t('err.categoryExists')); return }
       if (otherCategories.includes(val)) { new Notice(t('err.categoryExistsInOtherList')); return }
       void onChange([...categories, val])

@@ -1,3 +1,10 @@
+import {
+  DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_INCOME_CATEGORIES,
+  DEFAULT_TRANSFER_CATEGORIES,
+  type PennyWalletOptions,
+} from './types'
+
 type Locale = 'zh-TW' | 'en'
 
 const translations = {
@@ -10,7 +17,6 @@ const translations = {
     // Wallet types
     'label.walletType.cash': '現金',
     'label.walletType.bank': '銀行帳戶',
-    'label.walletType.creditCard': '信用卡',
 
     // Default expense categories
     'label.cat.food': '飲食',
@@ -160,7 +166,7 @@ const translations = {
     'settings.initialBalance': '初始餘額',
     'settings.includeInNetAssetOn': '目前：納入淨資產',
     'settings.includeInNetAssetOff': '目前：不納入淨資產',
-    'settings.customCategories': '自訂分類',
+    'settings.customCategories': '分類',
     'settings.expenseCategories': '支出',
     'settings.incomeCategories': '收入',
     'settings.transferCategories': '移轉',
@@ -192,9 +198,7 @@ const translations = {
 
     // Settings — extra
     'settings.noActiveWallets': '無使用中錢包',
-    'settings.creditDebtPrefix': '欠 ',
-    'settings.creditBalanceHint': '信用卡填入目前未還金額（正數）。例：欠 3,000 → 填 3000',
-    'settings.cashBankBalanceHint': '填入目前實際餘額（需 ≥ 0）',
+    'settings.balanceHint': '填入目前實際餘額。欠款帳戶（如信用卡）請填負數，例：欠 3,000 → 填 -3000',
 
     // Notices
     'notice.walletAdded': '✓ 帳戶「{name}」已新增',
@@ -205,14 +209,9 @@ const translations = {
     'notice.loadFailed': 'PennyWallet 載入失敗，請檢查插件設定。',
 
     // Errors — extra
-    'err.cashBankNegativeBalance': '現金與銀行帳戶餘額不能為負數',
-    'err.creditNegativeBalance': '信用卡未還金額不能為負數，請填正數欠款金額',
-    'err.creditNegativeBalanceShort': '信用卡未還金額請填正數',
     'err.categoryExists': '分類已存在',
     'err.categoryExistsInOtherList': '此分類名稱已存在於另一個清單中',
     'err.invalidDate': '日期格式無效',
-    'err.fromMustNotBeCreditCard': '轉出帳戶不能是信用卡',
-    'err.toMustBeCreditCard': '轉入帳戶必須是信用卡',
 
     'ui.unarchive': '取消封存',
 
@@ -229,7 +228,6 @@ const translations = {
 
     'label.walletType.cash': 'Cash',
     'label.walletType.bank': 'Bank Account',
-    'label.walletType.creditCard': 'Credit Card',
 
     'label.cat.food': 'Food',
     'label.cat.clothing': 'Clothing',
@@ -367,7 +365,7 @@ const translations = {
     'settings.initialBalance': 'Initial balance',
     'settings.includeInNetAssetOn': 'Current: included in net assets',
     'settings.includeInNetAssetOff': 'Current: excluded from net assets',
-    'settings.customCategories': 'Custom categories',
+    'settings.customCategories': 'Categories',
     'settings.expenseCategories': 'Expense',
     'settings.incomeCategories': 'Income',
     'settings.transferCategories': 'Transfer',
@@ -396,9 +394,7 @@ const translations = {
     'onboard.welcome': 'Welcome to PennyWallet! We recommend adding your bank accounts and credit cards.',
 
     'settings.noActiveWallets': 'No active wallets',
-    'settings.creditDebtPrefix': 'Owed ',
-    'settings.creditBalanceHint': 'Enter current outstanding debt (positive). e.g. owe 3,000 → enter 3000',
-    'settings.cashBankBalanceHint': 'Enter current actual balance (must be ≥ 0)',
+    'settings.balanceHint': 'Enter the current actual balance. Use a negative number for money owed, e.g. owe 3,000 → enter -3000',
 
     'notice.walletAdded': '✓ Account "{name}" added',
     'notice.walletReordered': '✓ Wallet order saved',
@@ -407,14 +403,9 @@ const translations = {
     'notice.transactionUpdated': '✓ Transaction updated',
     'notice.loadFailed': 'PennyWallet failed to load. Please check plugin settings.',
 
-    'err.cashBankNegativeBalance': 'Cash and bank balance cannot be negative',
-    'err.creditNegativeBalance': 'Credit card balance cannot be negative, enter positive debt amount',
-    'err.creditNegativeBalanceShort': 'Enter positive amount for credit card debt',
     'err.categoryExists': 'Category already exists',
     'err.categoryExistsInOtherList': 'This category already exists in the other list',
     'err.invalidDate': 'Invalid date',
-    'err.fromMustNotBeCreditCard': 'Source account cannot be a credit card',
-    'err.toMustBeCreditCard': 'Target account must be a credit card',
 
     'ui.unarchive': 'Unarchive',
 
@@ -512,12 +503,28 @@ export function formatMonthLabel(yearMonth: string): string {
   })
 }
 
-/** Translate a category value from markdown (key or raw string) to display label */
+/** Display label for a stored category value. Categories are plain user strings. */
 export function translateCategory(value: string): string {
   if (!value || value === '-') return t('label.cat.uncategorized')
-  const key = `label.cat.${value}` as TranslationKey
+  return value
+}
+
+/** Localized name for one of the seed category keys. */
+function seedCategoryLabel(key: string): string {
   const dict = translations[currentLocale] as Record<string, string>
-  return dict[key] ?? value  // custom categories return as-is
+  return dict[`label.cat.${key}`] ?? key
+}
+
+/**
+ * Category lists for a newly created config: the seed keys resolved to
+ * localized labels. From here on they are ordinary user-editable strings.
+ */
+export function seedDefaultCategories(): PennyWalletOptions['categories'] {
+  return {
+    expense:  DEFAULT_EXPENSE_CATEGORIES.map(seedCategoryLabel),
+    income:   DEFAULT_INCOME_CATEGORIES.map(seedCategoryLabel),
+    transfer: DEFAULT_TRANSFER_CATEGORIES.map(seedCategoryLabel),
+  }
 }
 
 export function initI18n(): void {

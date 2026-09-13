@@ -1,5 +1,5 @@
 export type TransactionType = 'expense' | 'income' | 'transfer'
-export type WalletType = 'cash' | 'bank' | 'creditCard'
+export type WalletType = 'cash' | 'bank'
 
 export interface Transaction {
   date: string        // MM/DD format as stored in markdown (e.g. "04/03")
@@ -7,7 +7,7 @@ export interface Transaction {
   wallet?: string     // expense / income
   fromWallet?: string // transfer / repayment
   toWallet?: string   // transfer / repayment
-  category?: string   // expense / income; default categories stored as key (e.g. "food"), custom as raw string
+  category?: string   // plain category name, exactly as it appears in Settings
   note: string
   tags?: string[]
   amount: number
@@ -17,7 +17,7 @@ export interface Transaction {
 export interface Wallet {
   name: string
   type: WalletType
-  initialBalance: number  // creditCard: positive number = debt amount
+  initialBalance: number  // may be negative (e.g. a credit card's outstanding debt)
   status: 'active' | 'archived'
   includeInNetAsset: boolean  // active wallets always true; archived wallets can be toggled
 }
@@ -30,20 +30,14 @@ export interface MonthSummary {
 
 export interface WalletBalance {
   wallet: Wallet
-  balance: number   // creditCard: positive = debt owed (displayed as negative in net asset)
-}
-
-export interface OptionsListGroup {
-  default: string[]   // built-in, immutable
-  custom: string[]    // user-defined
+  balance: number   // may be negative
 }
 
 export interface PennyWalletOptions {
-  types: OptionsListGroup
   categories: {
-    expense: OptionsListGroup
-    income: OptionsListGroup
-    transfer: OptionsListGroup
+    expense: string[]
+    income: string[]
+    transfer: string[]
   }
 }
 
@@ -69,7 +63,8 @@ export interface TransactionModalParams {
   date?: string  // yyyy-mm-dd
 }
 
-// Default category keys
+// Category keys seeded into a new config. They are i18n keys resolved to
+// localized labels at config-creation time - not a runtime "built-in" set.
 export const DEFAULT_EXPENSE_CATEGORIES = [
   'food', 'clothing', 'housing', 'transport', 'education',
   'entertainment', 'shopping', 'medical', 'cash_expense',
@@ -100,24 +95,12 @@ export const DEFAULT_CONFIG: PennyWalletConfig = {
   defaultWallet: 'Default Wallet',
   folderName: 'PennyWallet',
   decimalPlaces: 0,
+  // Seeded with localized labels by WalletFile at config-creation time
   options: {
-    types: {
-      default: ['expense', 'income', 'transfer'],
-      custom: [],
-    },
     categories: {
-      expense: {
-        default: [...DEFAULT_EXPENSE_CATEGORIES],
-        custom: [],
-      },
-      income: {
-        default: [...DEFAULT_INCOME_CATEGORIES],
-        custom: [],
-      },
-      transfer: {
-        default: [...DEFAULT_TRANSFER_CATEGORIES],
-        custom: [],
-      },
+      expense: [],
+      income: [],
+      transfer: [],
     },
   },
   tags: [],

@@ -44,19 +44,62 @@ const wallets = [
   },
   {
     name: PRIMARY_CARD,
-    type: 'creditCard',
-    initialBalance: 2500,
+    type: 'bank',
+    initialBalance: -2500,
     status: 'active',
     includeInNetAsset: true,
   },
   {
     name: SECONDARY_CARD,
-    type: 'creditCard',
-    initialBalance: 1800,
+    type: 'bank',
+    initialBalance: -1800,
     status: 'active',
     includeInNetAsset: true,
   },
 ]
+
+// Categories are plain user-editable names. Transactions below still refer to
+// them by key; categoryLabel() maps key -> name in the one place it matters.
+const CATEGORY_KEYS = {
+  expense: ['food', 'clothing', 'housing', 'transport', 'education',
+    'entertainment', 'shopping', 'medical', 'cash_expense',
+    'insurance', 'fees', 'tax'],
+  income: ['salary', 'interest', 'side_income', 'bonus', 'lottery',
+    'rent', 'cashback', 'dividend', 'investment_profit',
+    'insurance_income', 'pension'],
+  transfer: ['account_transfer', 'credit_card_payment', 'investment_trade'],
+}
+
+const CATEGORY_LABELS = {
+  food: 'Food',
+  clothing: 'Clothing',
+  housing: 'Housing',
+  transport: 'Transport',
+  education: 'Education',
+  entertainment: 'Entertainment',
+  shopping: 'Shopping',
+  medical: 'Medical',
+  cash_expense: 'Cash Expense',
+  insurance: 'Insurance',
+  fees: 'Fees',
+  tax: 'Tax',
+  salary: 'Salary',
+  interest: 'Interest',
+  side_income: 'Side Income',
+  bonus: 'Bonus',
+  lottery: 'Lottery',
+  rent: 'Rent',
+  cashback: 'Cashback',
+  dividend: 'Dividend',
+  investment_profit: 'Investment Profit',
+  insurance_income: 'Insurance Payout',
+  pension: 'Pension',
+  account_transfer: 'Account Transfer',
+  credit_card_payment: 'Credit Card Payment',
+  investment_trade: 'Investment Trade',
+}
+
+const categoryLabel = (key) => CATEGORY_LABELS[key] ?? key
 
 const config = {
   wallets,
@@ -65,25 +108,10 @@ const config = {
   decimalPlaces: 0,
   tags: fixedTags,
   options: {
-    types: { default: ['expense', 'income', 'transfer'], custom: [] },
     categories: {
-      expense: {
-        default: ['food', 'clothing', 'housing', 'transport', 'education',
-          'entertainment', 'shopping', 'medical', 'cash_expense',
-          'insurance', 'fees', 'tax'],
-        custom: [],
-      },
-      income: {
-        default: ['salary', 'interest', 'side_income', 'bonus', 'lottery',
-          'rent', 'cashback', 'dividend', 'investment_profit',
-          'insurance_income', 'pension'],
-        custom: [],
-      },
-      transfer: {
-        default: ['account_transfer', 'credit_card_payment',
-          'credit_card_refund', 'investment_trade'],
-        custom: [],
-      },
+      expense: CATEGORY_KEYS.expense.map(categoryLabel),
+      income: CATEGORY_KEYS.income.map(categoryLabel),
+      transfer: CATEGORY_KEYS.transfer.map(categoryLabel),
     },
   },
 }
@@ -221,7 +249,8 @@ function makeTransaction(date, type, partial) {
 
 function formatRow(tx) {
   const tags = tx.tags?.length ? tx.tags.join(',') : '-'
-  return `| ${formatMonthDay(tx.date)} | ${tx.type} | ${tx.wallet ?? '-'} | ${tx.fromWallet ?? '-'} | ${tx.toWallet ?? '-'} | ${tx.category ?? '-'} | ${tx.note || '-'} | ${tags} | ${tx.amount} | ${tx.createdAt ?? '-'} |`
+  const category = tx.category ? categoryLabel(tx.category) : '-'
+  return `| ${formatMonthDay(tx.date)} | ${tx.type} | ${tx.wallet ?? '-'} | ${tx.fromWallet ?? '-'} | ${tx.toWallet ?? '-'} | ${category} | ${tx.note || '-'} | ${tags} | ${tx.amount} | ${tx.createdAt ?? '-'} |`
 }
 
 function computeSummary(transactions) {
@@ -247,25 +276,12 @@ function applyTransaction(state, tx) {
     case 'income':
       if (tx.wallet) state.balances[tx.wallet] += tx.amount
       break
-    case 'expense': {
-      if (!tx.wallet) break
-      const walletType = state.walletTypes[tx.wallet]
-      if (walletType === 'creditCard') state.balances[tx.wallet] += tx.amount
-      else state.balances[tx.wallet] -= tx.amount
+    case 'expense':
+      if (tx.wallet) state.balances[tx.wallet] -= tx.amount
       break
-    }
     case 'transfer':
-      if (tx.category === 'credit_card_payment') {
-        // from (bank) decreases, to (credit card) debt decreases
-        if (tx.fromWallet) state.balances[tx.fromWallet] -= tx.amount
-        if (tx.toWallet) state.balances[tx.toWallet] -= tx.amount
-      } else if (tx.category === 'credit_card_refund' && tx.fromWallet === tx.toWallet) {
-        // credit card debt decreases once
-        if (tx.toWallet) state.balances[tx.toWallet] -= tx.amount
-      } else {
-        if (tx.fromWallet) state.balances[tx.fromWallet] -= tx.amount
-        if (tx.toWallet) state.balances[tx.toWallet] += tx.amount
-      }
+      if (tx.fromWallet) state.balances[tx.fromWallet] -= tx.amount
+      if (tx.toWallet) state.balances[tx.toWallet] += tx.amount
       break
   }
 }
@@ -462,7 +478,7 @@ function generateMonthTransactions(monthDate, state) {
   }
 
   for (const card of creditCards) {
-    const outstandingDebt = state.balances[card] + monthlyCardSpend[card]
+    const outstandingDebt = -state.balances[card] + monthlyCardSpend[card]
     const paymentBase = monthlyCardSpend[card] * (0.86 + random() * 0.1)
     const extraAmount = outstandingDebt > 5000 ? randInt(300, 1200) : 0
     const payment = Math.min(outstandingDebt, Math.round(paymentBase + extraAmount))
@@ -512,7 +528,6 @@ async function main() {
 
   const state = {
     balances: Object.fromEntries(wallets.map(wallet => [wallet.name, wallet.initialBalance])),
-    walletTypes: Object.fromEntries(wallets.map(wallet => [wallet.name, wallet.type])),
   }
 
   const currentMonth = new Date()

@@ -31,9 +31,9 @@ Use `‹` / `›` to move between months. Future months are disabled.
 
 Shows the **current running balance** of every active account, calculated from all transactions since the initial balance was set — not just the current month.
 
-Credit card balances are shown as negative values (outstanding debt).
+An account you owe money on shows as a negative value.
 
-**Net Assets** at the bottom is the sum of all cash/bank balances minus all credit card debt.
+**Net Assets** at the bottom is the sum of every included account balance.
 
 ### Asset Allocation Pie
 
@@ -87,9 +87,9 @@ Choose **3 months**, **6 months**, or **12 months**.
 
 ### Account Balances
 
-Shows the current running balance for each active account. Credit card balances are shown as negative values.
+Shows the current running balance for each active account. An account in debt shows as a negative value.
 
-**Net Assets** at the bottom is the sum of all cash/bank balances minus all credit card debt.
+**Net Assets** at the bottom is the sum of every included account balance.
 
 ### Cashflow Metrics
 

@@ -128,7 +128,7 @@ const BASE_CONFIG = JSON.stringify({
   defaultWallet: 'Cash',
   folderName: FOLDER,
   decimalPlaces: 0,
-  options: { types: { default: [], custom: [] }, categories: { expense: { default: [], custom: [] }, income: { default: [], custom: [] }, transfer: { default: [], custom: [] } } },
+  options: { categories: { expense: [], income: [], transfer: [] } },
   tags: [],
   autoValidateOnLoad: false,
 })

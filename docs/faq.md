@@ -29,7 +29,7 @@ The transaction is removed from the monthly `.md` file and the frontmatter cache
 
 ### Can I have multiple credit cards?
 
-Yes. Add each card as a separate Credit Card account. Each tracks its own outstanding debt independently.
+Yes. Add each card as its own account with a negative initial balance. Each tracks its own debt independently.
 
 ---
 
@@ -44,18 +44,18 @@ Use a **Transfer**:
 
 ### How do I record paying a credit card bill?
 
-Use a **Transfer** with category **Credit Card Payment**:
+Use a **Transfer** into the card's account:
 - From: the bank / cash account you paid from
-- To: the credit card you're paying off
+- To: the card account you're paying off
 - Amount: the payment amount
 
-See [Credit Card Workflow](./credit-card-workflow) for a full walkthrough.
+The category you pick is just a label — the money moves because of the accounts you chose. See [Tracking a Credit Card](./credit-card-workflow) for a full walkthrough.
 
 ---
 
 ### How do I record a credit card refund?
 
-Use an **Expense** on the same credit card and enable **This is a refund**. It is stored as a negative expense and reduces the card's outstanding debt.
+Use an **Expense** on the same account and enable **This is a refund**. It is stored as a negative expense and adds the money back.
 
 ---
 

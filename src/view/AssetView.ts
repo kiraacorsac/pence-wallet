@@ -89,10 +89,9 @@ export class AssetView extends ItemView {
       })
       left.createEl('span', { text: wallet.name, cls: 'pw-wallet-name' })
 
-      const displayBalance = wallet.type === 'creditCard' ? -balance : balance
       row.createEl('span', {
-        text: formatAmount(Math.abs(displayBalance), dp),
-        cls: 'pw-wallet-balance' + (displayBalance < 0 ? ' is-negative' : ''),
+        text: formatAmount(Math.abs(balance), dp),
+        cls: 'pw-wallet-balance' + (balance < 0 ? ' is-negative' : ''),
       })
     }
 
@@ -103,11 +102,10 @@ export class AssetView extends ItemView {
       cls: 'pw-net-value' + (netAsset < 0 ? ' is-negative' : ''),
     })
 
-    // Asset allocation pie (≥2 positive-balance non-credit wallets)
+    // Asset allocation pie (≥2 positive-balance accounts)
     const assetMap = new Map<string, number>()
     for (const { wallet, balance } of walletBalances) {
       if (wallet.status === 'archived') continue
-      if (wallet.type === 'creditCard') continue
       if (balance > 0) assetMap.set(wallet.name, balance)
     }
     if (assetMap.size >= 2) {

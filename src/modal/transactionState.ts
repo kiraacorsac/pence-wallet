@@ -1,5 +1,4 @@
-import type { TransactionType, PennyWalletConfig, Transaction, Wallet } from '../types'
-import { translateCategory } from '../i18n'
+import type { TransactionType, PennyWalletConfig, Transaction } from '../types'
 import { validateTag, dateToMonthDay } from '../utils'
 
 /**
@@ -32,25 +31,19 @@ export function parseAmountForEdit(rawAmount: number): { display: string; isRefu
 
 /**
  * Build category dropdown options for a given transaction type.
- * Default keys go through i18n translation; custom labels are user strings.
+ * Categories are plain user-editable strings, so key and label are the same.
  */
 export function getCategoryOptions(
   config: PennyWalletConfig,
   type: TransactionType,
 ): { key: string; label: string }[] {
-  const catOptions = type === 'expense'
+  const categories = type === 'expense'
     ? config.options.categories.expense
     : type === 'income'
       ? config.options.categories.income
       : config.options.categories.transfer
 
-  const defaultKeys = catOptions.default
-  const customs = catOptions.custom
-
-  return [
-    ...defaultKeys.map(key => ({ key, label: translateCategory(key) })),
-    ...customs.map(c => ({ key: c, label: c })),
-  ]
+  return categories.map(c => ({ key: c, label: c }))
 }
 
 export type AddTagResult =
@@ -81,8 +74,6 @@ export type ValidationErrorKey =
   | 'err.walletRequired'
   | 'err.fromWalletRequired'
   | 'err.toWalletRequired'
-  | 'err.fromMustNotBeCreditCard'
-  | 'err.toMustBeCreditCard'
   | 'err.sameWallet'
 
 export type ValidationResult =
@@ -117,16 +108,6 @@ export function validateTransactionForm(
   } else {
     if (!state.fromWallet) return { ok: false, errorKey: 'err.fromWalletRequired' }
     if (!state.toWallet) return { ok: false, errorKey: 'err.toWalletRequired' }
-    if (state.category === 'credit_card_payment') {
-      const fromType = config.wallets.find(w => w.name === state.fromWallet)?.type
-      const toType = config.wallets.find(w => w.name === state.toWallet)?.type
-      if (fromType === 'creditCard') {
-        return { ok: false, errorKey: 'err.fromMustNotBeCreditCard' }
-      }
-      if (toType !== 'creditCard') {
-        return { ok: false, errorKey: 'err.toMustBeCreditCard' }
-      }
-    }
     if (state.fromWallet === state.toWallet) {
       return { ok: false, errorKey: 'err.sameWallet' }
     }
@@ -152,22 +133,4 @@ export function buildTransactionPayload(state: TransactionFormState): Transactio
     amount: state.isRefund ? -parseFloat(state.amount) : parseFloat(state.amount),
     tags: state.tags.length ? state.tags : undefined,
   }
-}
-
-/**
- * Filter active wallets into from/to candidates for transfer category.
- * cc_payment: from excludes creditCard, to only creditCard.
- * Other categories: both from and to use all active wallets.
- */
-export function getTransferWalletCandidates(
-  activeWallets: Wallet[],
-  category: string,
-): { fromCandidates: Wallet[]; toCandidates: Wallet[] } {
-  if (category === 'credit_card_payment') {
-    return {
-      fromCandidates: activeWallets.filter(w => w.type !== 'creditCard'),
-      toCandidates: activeWallets.filter(w => w.type === 'creditCard'),
-    }
-  }
-  return { fromCandidates: activeWallets, toCandidates: activeWallets }
 }

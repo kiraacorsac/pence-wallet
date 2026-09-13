@@ -3,7 +3,7 @@ import { Transaction, TransactionType, TransactionModalParams, PennyWalletConfig
 import { WalletFile } from '../io/WalletFile'
 import { dateToYearMonth } from '../utils'
 import { t } from '../i18n'
-import { parseAmountForEdit, getCategoryOptions as getCategoryOptionsFromState, validateTransactionForm, buildTransactionPayload, getTransferWalletCandidates, type TransactionFormState } from './transactionState'
+import { parseAmountForEdit, getCategoryOptions as getCategoryOptionsFromState, validateTransactionForm, buildTransactionPayload, type TransactionFormState } from './transactionState'
 import { buildTagInput } from './TagInput'
 import { ConfirmModal } from './ConfirmModal'
 
@@ -220,21 +220,16 @@ export class TransactionModal extends Modal {
 
     if (this.type === 'expense' || this.type === 'income') {
       this.addField(this.fieldsEl, t('modal.wallet'), () => {
-        const walletOptions = this.type === 'income'
-          ? activeWallets.filter(w => w.type !== 'creditCard')
-          : activeWallets
         return this.buildSelect(
-          walletOptions.map(w => ({ value: w.name, label: w.name })),
+          activeWallets.map(w => ({ value: w.name, label: w.name })),
           this.wallet,
           val => { this.wallet = val }
         )
       }, true)
 
     } else {
-      this.normalizeWalletForCategory(config)
-
-      const { fromCandidates: fromWallets, toCandidates: toWallets }
-        = getTransferWalletCandidates(activeWallets, this.category)
+      const fromWallets = activeWallets
+      const toWallets = activeWallets
 
       this.addField(this.fieldsEl, t('modal.fromWallet'), () =>
         this.buildSelect(
@@ -358,14 +353,6 @@ export class TransactionModal extends Modal {
     return config.wallets.filter(w => w.status === 'active')
   }
 
-  protected normalizeWalletForCategory(config: PennyWalletConfig): void {
-    if (this.category !== 'credit_card_payment') return
-    const fromType = config.wallets.find(w => w.name === this.fromWallet)?.type
-    const toType   = config.wallets.find(w => w.name === this.toWallet)?.type
-    if (fromType === 'creditCard') this.fromWallet = ''
-    if (toType && toType !== 'creditCard') this.toWallet = ''
-  }
-
   protected resetStateForType(newType: TransactionType): void {
     this.type = newType
     if (newType !== 'expense') this.isRefund = false
@@ -385,6 +372,8 @@ export class TransactionModal extends Modal {
   protected getCategoryOptions(config: PennyWalletConfig): { key: string; label: string }[] {
     return getCategoryOptionsFromState(config, this.type)
   }
+
+
 
   protected showError(msg: string) {
     this.errorEl.textContent = msg

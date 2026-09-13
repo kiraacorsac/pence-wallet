@@ -172,16 +172,16 @@ Before opening a PR, verify the following:
 - [ ] Delete a transaction — confirm dialog appears, balance updates
 
 **Accounts**
-- [ ] Add cash / bank / credit card account
+- [ ] Add cash / bank account
 - [ ] Edit account name and initial balance — balances recalculate
 - [ ] Archive an account with transactions — disappears from modal, stays in history
 - [ ] Unarchive an account — reappears in transaction form
 - [ ] Delete an account with no transactions
 
-**Credit Card**
-- [ ] Record expense on credit card — debt increases
-- [ ] Record credit card payment transfer from bank to credit card — both balances update
-- [ ] Net asset reflects credit card debt as negative
+**Negative balances**
+- [ ] Record an expense that pushes an account below zero — balance goes negative
+- [ ] Transfer from a bank account into the negative one — both balances update
+- [ ] Net asset adds the negative balance in as a subtraction
 
 **Finance Overview**
 - [ ] Correct month navigation (prev/next, future disabled)

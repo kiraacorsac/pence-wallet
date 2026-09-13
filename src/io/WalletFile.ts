@@ -7,11 +7,9 @@ import {
   PennyWalletConfig,
   PennyWalletOptions,
   DEFAULT_CONFIG,
-  DEFAULT_EXPENSE_CATEGORIES,
-  DEFAULT_INCOME_CATEGORIES,
-  DEFAULT_TRANSFER_CATEGORIES,
 } from '../types'
 import type { Wallet, FrontmatterIssue, OrphanedWalletIssue, ValidationIssue } from '../types'
+import { seedDefaultCategories } from '../i18n'
 
 const ROOT_CONFIG_PATH = normalizePath('.penny-wallet.json')
 const TABLE_HEADER = `| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |
@@ -21,51 +19,21 @@ const TABLE_HEADER = `| Date | Type | Wallet | From | To | Category | Note | Tag
 
 export function parseRow(line: string): Transaction | null {
   const cols = line.split('|').map(c => c.trim()).filter((_, i, a) => i > 0 && i < a.length - 1)
-  if (cols.length < 8 || cols.length > 10) return null
-  const [date, type, wallet, fromWallet, toWallet, category, note] = cols
+  // date type wallet from to category note tags amount createdAt
+  if (cols.length !== 10) return null
+  const [date, type, wallet, fromWallet, toWallet, category, note, tagsStr, amountStr, createdAtStr] = cols
   if (!date || !type) return null
-
-  let tagsStr: string | undefined
-  let amountStr: string
-  let createdAtStr: string | undefined
-
-  if (cols.length === 8) {
-    // old: no tags, no createdAt
-    amountStr = cols[7]
-  } else if (cols.length === 9) {
-    // col[7] numeric → old format (amount, createdAt); non-numeric → tags present (no createdAt)
-    if (/^-?\d+(\.\d+)?$/.test(cols[7])) {
-      amountStr = cols[7]
-      createdAtStr = cols[8]
-    } else {
-      tagsStr = cols[7]
-      amountStr = cols[8]
-    }
-  } else {
-    // 10 cols: date type wallet from to category note tags amount createdAt
-    tagsStr = cols[7]
-    amountStr = cols[8]
-    createdAtStr = cols[9]
-  }
 
   const amount = parseFloat(amountStr)
   if (isNaN(amount)) return null
 
-  // Legacy type mapping
-  let txType = type as TransactionType
-  let txCategory: string | undefined = category === '-' ? undefined : category
-  if (type === 'payment' || type === 'repayment') {
-    txType = 'transfer'
-    txCategory = 'credit_card_payment'
-  }
-
   return {
     date,
-    type: txType,
+    type: type as TransactionType,
     wallet:     wallet     === '-' ? undefined : wallet,
     fromWallet: fromWallet === '-' ? undefined : fromWallet,
     toWallet:   toWallet   === '-' ? undefined : toWallet,
-    category:   txCategory,
+    category:   category === '-' ? undefined : category,
     note:       note       === '-' ? '' : note,
     tags:       (tagsStr && tagsStr !== '-') ? tagsStr.split(',').filter(t => t.length > 0) : undefined,
     amount,
@@ -217,7 +185,7 @@ export class WalletFile {
           const parsed = JSON.parse(raw) as Partial<PennyWalletConfig>
           this.config = { ...DEFAULT_CONFIG, ...parsed, options: this.normalizeOptions(parsed) }
         } catch {
-          this.config = { ...DEFAULT_CONFIG }
+          this.config = { ...DEFAULT_CONFIG, options: { categories: seedDefaultCategories() } }
         }
         return this.config
       }
@@ -229,6 +197,7 @@ export class WalletFile {
         ...DEFAULT_CONFIG,
         wallets: [{ ...DEFAULT_CONFIG.wallets[0], name: cashName }],
         defaultWallet: cashName,
+        options: { categories: seedDefaultCategories() },
       }
       await this.saveConfig()
       this.createdDefaultConfigOnLastLoad = true
@@ -240,7 +209,7 @@ export class WalletFile {
       const parsed = JSON.parse(raw) as Partial<PennyWalletConfig>
       this.config = { ...DEFAULT_CONFIG, ...parsed, options: this.normalizeOptions(parsed) }
     } catch {
-      this.config = { ...DEFAULT_CONFIG }
+      this.config = { ...DEFAULT_CONFIG, options: { categories: seedDefaultCategories() } }
     }
     return this.config
   }
@@ -249,33 +218,30 @@ export class WalletFile {
     return this.createdDefaultConfigOnLastLoad
   }
 
-  updateCustomCategories(type: 'expense' | 'income' | 'transfer', custom: string[]): void {
+  updateCategories(type: 'expense' | 'income' | 'transfer', categories: string[]): void {
     const { options } = this.config
     this.config = {
       ...this.config,
       options: {
         ...options,
-        categories: {
-          ...options.categories,
-          [type]: { ...options.categories[type], custom },
-        },
+        categories: { ...options.categories, [type]: categories },
       },
     }
   }
 
+  /**
+   * A missing category list falls back to the seed; an empty one is left empty,
+   * since removing every category is a legitimate state.
+   */
   private normalizeOptions(parsed: Partial<PennyWalletConfig>): PennyWalletOptions {
-    const p = parsed.options
-    return {
-      types: {
-        default: ['expense', 'income', 'transfer'],
-        custom: p?.types?.custom ?? [],
-      },
-      categories: {
-        expense:  { default: [...DEFAULT_EXPENSE_CATEGORIES],  custom: p?.categories?.expense?.custom  ?? [] },
-        income:   { default: [...DEFAULT_INCOME_CATEGORIES],   custom: p?.categories?.income?.custom   ?? [] },
-        transfer: { default: [...DEFAULT_TRANSFER_CATEGORIES], custom: (p?.categories as Record<string, { custom?: string[] }>)?.['transfer']?.custom ?? [] },
-      },
+    const stored = parsed.options?.categories
+    const categories = seedDefaultCategories()
+
+    for (const bucket of ['expense', 'income', 'transfer'] as const) {
+      if (Array.isArray(stored?.[bucket])) categories[bucket] = [...stored[bucket]]
     }
+
+    return { categories }
   }
 
   private mergeTags(newTags: string[]): void {
@@ -619,11 +585,7 @@ export class WalletFile {
     let net = 0
     for (const { wallet, balance } of walletBalances) {
       if (!wallet.includeInNetAsset) continue
-      if (wallet.type === 'creditCard') {
-        net -= balance  // creditCard balance = outstanding debt
-      } else {
-        net += balance
-      }
+      net += balance
     }
     return net
   }
@@ -652,11 +614,9 @@ export class WalletFile {
     return map
   }
 
-  /** Per-wallet balance at each target month end — cash + bank only */
+  /** Per-wallet balance at each target month end, for every active account */
   async getWalletBalanceTrend(targetMonths: string[]): Promise<Map<string, Map<string, number>>> {
-    const trackedWallets = this.config.wallets.filter(
-      w => w.status === 'active' && (w.type === 'cash' || w.type === 'bank')
-    )
+    const trackedWallets = this.config.wallets.filter(w => w.status === 'active')
     const allAvailableMonths = this.getAllYearMonths()
     const lastTarget = targetMonths[targetMonths.length - 1]
     const relevantMonths = allAvailableMonths.filter(m => m <= lastTarget).sort()
@@ -752,31 +712,19 @@ export class WalletFile {
   }
 
   private applyTxToBalanceMap(tx: Transaction, map: Map<string, number>): void {
-    const walletType = (name: string) => this.config.wallets.find(w => w.name === name)?.type
+    const add = (name: string | undefined, amount: number) => {
+      if (name && map.has(name)) map.set(name, (map.get(name) ?? 0) + amount)
+    }
     switch (tx.type) {
       case 'expense':
-        if (tx.wallet && map.has(tx.wallet)) {
-          const delta = walletType(tx.wallet) === 'creditCard' ? tx.amount : -tx.amount
-          map.set(tx.wallet, (map.get(tx.wallet) ?? 0) + delta)
-        }
+        add(tx.wallet, -tx.amount)
         break
       case 'income':
-        if (tx.wallet && map.has(tx.wallet)) {
-          map.set(tx.wallet, (map.get(tx.wallet) ?? 0) + tx.amount)
-        }
+        add(tx.wallet, tx.amount)
         break
       case 'transfer':
-        if (tx.category === 'credit_card_payment') {
-          if (tx.fromWallet && map.has(tx.fromWallet))
-            map.set(tx.fromWallet, (map.get(tx.fromWallet) ?? 0) - tx.amount)
-          if (tx.toWallet && map.has(tx.toWallet))
-            map.set(tx.toWallet, (map.get(tx.toWallet) ?? 0) - tx.amount)
-        } else {
-          if (tx.fromWallet && map.has(tx.fromWallet))
-            map.set(tx.fromWallet, (map.get(tx.fromWallet) ?? 0) - tx.amount)
-          if (tx.toWallet && map.has(tx.toWallet))
-            map.set(tx.toWallet, (map.get(tx.toWallet) ?? 0) + tx.amount)
-        }
+        add(tx.fromWallet, -tx.amount)
+        add(tx.toWallet, tx.amount)
         break
     }
   }
@@ -785,8 +733,7 @@ export class WalletFile {
     let net = 0
     for (const w of this.config.wallets) {
       if (!w.includeInNetAsset) continue
-      const balance = map.get(w.name) ?? 0
-      net += w.type === 'creditCard' ? -balance : balance
+      net += map.get(w.name) ?? 0
     }
     return net
   }
