@@ -254,17 +254,37 @@ export function drawNetChart(
 
 // ─── Pie chart ────────────────────────────────────────────────────────────────
 
+/** FNV-1a: small, stable hash so a category keeps the same color across charts. */
+function hashKey(key: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  // Avalanche (murmur3 fmix32): short, similar keys otherwise clump in the low
+  // bits the palette index is taken from.
+  h ^= h >>> 16
+  h = Math.imul(h, 0x85ebca6b)
+  h ^= h >>> 13
+  h = Math.imul(h, 0xc2b2ae35)
+  return (h ^ (h >>> 16)) >>> 0
+}
+
+/** Palette slot for a category, derived from its key — not from its position. */
+export function categoryColor(key: string, palette: string[]): string {
+  return palette[hashKey(key) % palette.length]
+}
+
+/** Drops empty slices and orders the rest largest-first. */
 export function filterPieData(data: Map<string, number>): Map<string, number> {
   if (data.size === 0) return new Map()
   const total = [...data.values()].reduce((a, b) => a + b, 0)
   if (total === 0) return new Map()
 
   // Every category keeps its own segment, however small — no '__other__' bucket.
-  const filtered = new Map<string, number>()
-  for (const [key, value] of data) {
-    if (value > 0) filtered.set(key, value)
-  }
-  return filtered
+  return new Map(
+    [...data].filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]),
+  )
 }
 
 export function drawPie(
@@ -283,7 +303,7 @@ export function drawPie(
   }
 
   const colors = getThemeColors()
-  const segColors = segments.map((_, i) => colors.pie[i % colors.pie.length])
+  const segColors = segments.map(s => categoryColor(s.key, colors.pie))
 
   const wrap = container.createDiv('pw-pie-wrap')
   // Fixed-size wrapper lets Chart.js use responsive:true while keeping a stable size.

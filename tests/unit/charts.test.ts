@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { filterPieData, formatK, getThemeColors } from '../../src/view/charts'
+import { categoryColor, filterPieData, formatK, getThemeColors } from '../../src/view/charts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -109,9 +109,9 @@ describe('filterPieData', () => {
     expect(result.size).toBe(0)
   })
 
-  it('preserves input order', () => {
+  it('orders segments largest-first', () => {
     const data = new Map([['food', 900], ['tiny', 9], ['transport', 91]])
-    expect([...filterPieData(data).keys()]).toEqual(['food', 'tiny', 'transport'])
+    expect([...filterPieData(data).keys()]).toEqual(['food', 'transport', 'tiny'])
   })
 
   it('drops zero-value segments', () => {
@@ -125,5 +125,27 @@ describe('filterPieData', () => {
     const data = new Map([['food', 0], ['transport', 0]])
     const result = filterPieData(data)
     expect(result.size).toBe(0)
+  })
+})
+
+describe('categoryColor', () => {
+  const palette = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+
+  it('is determined by the category key, not its position', () => {
+    expect(categoryColor('food', palette)).toBe(categoryColor('food', palette))
+    const withOthers = ['transport', 'food'].map(k => categoryColor(k, palette))
+    expect(withOthers[1]).toBe(categoryColor('food', palette))
+  })
+
+  it('always returns a color from the palette', () => {
+    for (const key of ['', 'food', 'transport', '飲食', 'a very long category name']) {
+      expect(palette).toContain(categoryColor(key, palette))
+    }
+  })
+
+  it('spreads keys across the palette', () => {
+    const keys = ['food', 'clothing', 'housing', 'transport', 'education', 'medical', 'shopping', 'insurance']
+    const used = new Set(keys.map(k => categoryColor(k, palette)))
+    expect(used.size).toBeGreaterThan(1)
   })
 })
