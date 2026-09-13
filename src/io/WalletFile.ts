@@ -246,6 +246,10 @@ export class WalletFile {
         ...DEFAULT_CONFIG,
         wallets: [{ ...DEFAULT_CONFIG.wallets[0], name: cashName }],
         defaultWallet: cashName,
+        // New vaults follow each currency's own convention. DEFAULT_CONFIG keeps
+        // 0 because it also back-fills vaults that predate the setting, and those
+        // must keep rendering exactly as they did.
+        decimalPlaces: 'auto',
         options: { categories: seedDefaultCategories() },
       }
       await this.saveConfig()

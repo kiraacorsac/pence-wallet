@@ -135,3 +135,31 @@ describe('addTag', () => {
     expect((read() as PennyWalletConfig).tags).toContain('coffee')
   })
 })
+
+describe('currency defaults', () => {
+  it('seeds a brand new vault with automatic decimal places', async () => {
+    const { app } = createMockApp()
+    const wf = new WalletFile(app, createMockStore().store)
+    const config = await wf.loadConfig()
+    expect(config.decimalPlaces).toBe('auto')
+    expect(config.baseCurrency).toBe('USD')
+    expect(config.rates).toEqual([])
+  })
+
+  it('leaves a vault that predates the setting rendering as it did', async () => {
+    const { app } = createMockApp()
+    // a stored config from before multi-currency: no currency keys at all
+    const { store } = createMockStore({
+      wallets: [{ name: 'Cash', type: 'cash', initialBalance: 0, status: 'active', includeInNetAsset: true }],
+      defaultWallet: 'Cash',
+      folderName: 'PennyWallet',
+      decimalPlaces: 0,
+      tags: [],
+      options: { categories: { expense: [], income: [], transfer: [] } },
+    })
+    const config = await new WalletFile(app, store).loadConfig()
+    expect(config.decimalPlaces).toBe(0)
+    expect(config.baseCurrency).toBe('USD')
+    expect(config.wallets[0].currency).toBeUndefined()
+  })
+})
