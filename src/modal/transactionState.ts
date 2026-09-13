@@ -1,5 +1,6 @@
 import type { TransactionType, PennyWalletConfig, Transaction } from '../types'
 import { validateTag, dateToMonthDay } from '../utils'
+import { baseCurrency, currencyDecimals, walletCurrency } from '../money'
 
 /**
  * Form state shared between TransactionModal and helpers in this module.
@@ -15,7 +16,38 @@ export interface TransactionFormState {
   note: string
   tags: string[]
   amount: string       // raw input string (not parsed yet)
+  toAmount: string     // received amount, only used by a cross-currency transfer
   isRefund: boolean
+}
+
+/** Currency of a named account, or the base currency when it is unknown. */
+export function accountCurrency(name: string, config: PennyWalletConfig): string {
+  const wallet = config.wallets.find(w => w.name === name)
+  return wallet ? walletCurrency(wallet, config) : baseCurrency(config)
+}
+
+/**
+ * The two sides of a transfer. `isCross` is what decides whether the received
+ * amount is asked for, stored, and used to credit the destination.
+ */
+export function transferCurrencies(
+  state: Pick<TransactionFormState, 'type' | 'fromWallet' | 'toWallet'>,
+  config: PennyWalletConfig,
+): { from: string; to: string; isCross: boolean } {
+  const from = accountCurrency(state.fromWallet, config)
+  const to = accountCurrency(state.toWallet, config)
+  const isCross = state.type === 'transfer'
+    && !!state.fromWallet && !!state.toWallet
+    && from !== to
+  return { from, to, isCross }
+}
+
+/** Rate implied by what was sent and what arrived, or null while incomplete. */
+export function impliedRate(sent: string, received: string): number | null {
+  const from = parseFloat(sent)
+  const to = parseFloat(received)
+  if (!isFinite(from) || !isFinite(to) || from <= 0 || to <= 0) return null
+  return to / from
 }
 
 /**
@@ -71,6 +103,9 @@ export type ValidationErrorKey =
   | 'err.amountRequired'
   | 'err.amountPositive'
   | 'err.amountInteger'
+  | 'err.receivedAmountRequired'
+  | 'err.receivedAmountPositive'
+  | 'err.receivedAmountInteger'
   | 'err.walletRequired'
   | 'err.fromWalletRequired'
   | 'err.toWalletRequired'
@@ -91,7 +126,11 @@ export function validateTransactionForm(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(state.date)) {
     return { ok: false, errorKey: 'err.invalidDate' }
   }
-  const dp = config.decimalPlaces ?? 0
+  // The amount leaving is denominated in the source account's currency.
+  const sentCode = state.type === 'transfer'
+    ? accountCurrency(state.fromWallet, config)
+    : accountCurrency(state.wallet, config)
+  const dp = currencyDecimals(sentCode, config)
   const amount = parseFloat(state.amount)
   if (!state.amount || isNaN(amount)) {
     return { ok: false, errorKey: 'err.amountRequired' }
@@ -111,6 +150,20 @@ export function validateTransactionForm(
     if (state.fromWallet === state.toWallet) {
       return { ok: false, errorKey: 'err.sameWallet' }
     }
+
+    const { to, isCross } = transferCurrencies(state, config)
+    if (isCross) {
+      const received = parseFloat(state.toAmount)
+      if (!state.toAmount || isNaN(received)) {
+        return { ok: false, errorKey: 'err.receivedAmountRequired' }
+      }
+      if (received <= 0) {
+        return { ok: false, errorKey: 'err.receivedAmountPositive' }
+      }
+      if (currencyDecimals(to, config) === 0 && !Number.isInteger(received)) {
+        return { ok: false, errorKey: 'err.receivedAmountInteger' }
+      }
+    }
   }
   return { ok: true }
 }
@@ -121,7 +174,11 @@ export function validateTransactionForm(
  *
  * Refund handling: isRefund=true → amount stored as negative.
  */
-export function buildTransactionPayload(state: TransactionFormState): Transaction {
+export function buildTransactionPayload(
+  state: TransactionFormState,
+  config: PennyWalletConfig,
+): Transaction {
+  const { isCross } = transferCurrencies(state, config)
   return {
     date: dateToMonthDay(state.date),
     type: state.type,
@@ -131,6 +188,8 @@ export function buildTransactionPayload(state: TransactionFormState): Transactio
     category:   state.category || undefined,
     note: state.note,
     amount: state.isRefund ? -parseFloat(state.amount) : parseFloat(state.amount),
+    // Only a cross-currency transfer needs a second amount recorded.
+    amountTo: isCross ? parseFloat(state.toAmount) : undefined,
     tags: state.tags.length ? state.tags : undefined,
   }
 }

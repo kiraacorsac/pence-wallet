@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseAmountForEdit, getCategoryOptions, addTagToList, validateTransactionForm, type TransactionFormState } from '../../src/modal/transactionState'
 import type { PennyWalletConfig } from '../../src/types'
+import { DEFAULT_CONFIG } from '../../src/types'
 
 describe('parseAmountForEdit', () => {
   it('positive integer → display string + isRefund=false', () => {
@@ -111,6 +112,7 @@ describe('validateTransactionForm', () => {
     wallet: 'cash',
     fromWallet: '',
     toWallet: '',
+    toAmount: '',
     category: 'food',
     note: '',
     tags: [],
@@ -233,6 +235,14 @@ describe('validateTransactionForm', () => {
 
 import { buildTransactionPayload } from '../../src/modal/transactionState'
 
+const payloadConfig: PennyWalletConfig = {
+  ...DEFAULT_CONFIG,
+  wallets: [
+    { name: 'cash', type: 'cash', status: 'active', initialBalance: 0, includeInNetAsset: true },
+    { name: 'bank', type: 'bank', status: 'active', initialBalance: 0, includeInNetAsset: true },
+  ],
+}
+
 describe('buildTransactionPayload', () => {
   const baseState: TransactionFormState = {
     date: '2026-05-03',
@@ -240,6 +250,7 @@ describe('buildTransactionPayload', () => {
     wallet: 'cash',
     fromWallet: '',
     toWallet: '',
+    toAmount: '',
     category: 'food',
     note: 'lunch',
     tags: [],
@@ -248,7 +259,7 @@ describe('buildTransactionPayload', () => {
   }
 
   it('expense → wallet set, fromWallet/toWallet undefined', () => {
-    const tx = buildTransactionPayload(baseState)
+    const tx = buildTransactionPayload(baseState, payloadConfig)
     expect(tx.wallet).toBe('cash')
     expect(tx.fromWallet).toBeUndefined()
     expect(tx.toWallet).toBeUndefined()
@@ -258,7 +269,7 @@ describe('buildTransactionPayload', () => {
   })
 
   it('income → wallet set, fromWallet/toWallet undefined', () => {
-    const tx = buildTransactionPayload({ ...baseState, type: 'income' })
+    const tx = buildTransactionPayload({ ...baseState, type: 'income' }, payloadConfig)
     expect(tx.wallet).toBe('cash')
     expect(tx.fromWallet).toBeUndefined()
     expect(tx.toWallet).toBeUndefined()
@@ -271,34 +282,34 @@ describe('buildTransactionPayload', () => {
       wallet: '',
       fromWallet: 'cash',
       toWallet: 'bank',
-    })
+    }, payloadConfig)
     expect(tx.wallet).toBeUndefined()
     expect(tx.fromWallet).toBe('cash')
     expect(tx.toWallet).toBe('bank')
   })
 
   it('refund → amount negative', () => {
-    const tx = buildTransactionPayload({ ...baseState, isRefund: true })
+    const tx = buildTransactionPayload({ ...baseState, isRefund: true }, payloadConfig)
     expect(tx.amount).toBe(-100)
   })
 
   it('empty category → undefined', () => {
-    const tx = buildTransactionPayload({ ...baseState, category: '' })
+    const tx = buildTransactionPayload({ ...baseState, category: '' }, payloadConfig)
     expect(tx.category).toBeUndefined()
   })
 
   it('non-empty tags → preserved', () => {
-    const tx = buildTransactionPayload({ ...baseState, tags: ['#food'] })
+    const tx = buildTransactionPayload({ ...baseState, tags: ['#food'] }, payloadConfig)
     expect(tx.tags).toEqual(['#food'])
   })
 
   it('date formatted to MM/DD via dateToMonthDay', () => {
-    const tx = buildTransactionPayload(baseState)
+    const tx = buildTransactionPayload(baseState, payloadConfig)
     expect(tx.date).toBe('05/03')
   })
 
   it('decimal amount preserved as float', () => {
-    const tx = buildTransactionPayload({ ...baseState, amount: '12.5' })
+    const tx = buildTransactionPayload({ ...baseState, amount: '12.5' }, payloadConfig)
     expect(tx.amount).toBe(12.5)
   })
 })

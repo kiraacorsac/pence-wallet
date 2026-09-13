@@ -36,15 +36,15 @@ export function formatHeroAmount(raw: string): string {
 
   const intNum = intPart === '' ? 0 : Number(intPart)
   const intStr = Number.isFinite(intNum)
-    ? intNum.toLocaleString('en-US')
+    ? intNum.toLocaleString()
     : intPart
 
   if (dotIdx === -1) return intStr
   return `${intStr}.${decPart}`
 }
 
-export function formatMobileHeroAmount(raw: string, isRefund: boolean): string {
-  const amount = `$${formatHeroAmount(raw)}`
+export function formatMobileHeroAmount(raw: string, isRefund: boolean, symbol = '$'): string {
+  const amount = `${symbol}${formatHeroAmount(raw)}`
   return isRefund && raw !== '' ? `+ ${amount}` : amount
 }
 

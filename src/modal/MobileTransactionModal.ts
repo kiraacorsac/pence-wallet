@@ -12,17 +12,28 @@ import {
   type MobileCalculatorKey,
   type MobileCalculatorState,
 } from './mobileCalculatorState'
-import { baseCurrency, currencyDecimals } from '../money'
+import { currencyDecimals, getCurrency } from '../money'
+import { transferCurrencies, impliedRate } from './transactionState'
+
+/** Which side of a cross-currency transfer an amount belongs to. */
+type AmountLeg = 'sent' | 'received'
 
 export class MobileTransactionModal extends TransactionModal {
   private mobileTabsEl!: HTMLElement
   private mobileRowsEl!: HTMLElement
+  private mobileAmountAreasEl!: HTMLElement
   private mobileAmountEl!: HTMLElement
+  private mobileToAmountEl: HTMLElement | null = null
+  private mobileRateEl: HTMLElement | null = null
   private mobileCalculatorState: MobileCalculatorState = createMobileCalculatorState()
+  private mobileToCalculatorState: MobileCalculatorState = createMobileCalculatorState()
+  /** Which hero amount the open calculator pad is editing. */
+  private activeLeg: AmountLeg = 'sent'
   private mobileCalculatorPad: MobileCalculatorPad | null = null
   private mobileCalculatorClose: (() => void) | null = null
   private mobileCalculatorTitleEl: HTMLElement | null = null
   private mobileDecimalPlaces: number = 0
+  private mobileToDecimalPlaces: number = 0
   private viewportCleanups: (() => void)[] = []
 
   onOpen() {
@@ -65,20 +76,9 @@ export class MobileTransactionModal extends TransactionModal {
     this.mobileTabsEl = contentEl.createDiv('pw-mobile-tabs')
     this.renderMobileTabs(config)
 
-    // Amount display
-    const amountArea = contentEl.createDiv('pw-mobile-amount-area')
-    amountArea.setAttribute('role', 'button')
-    amountArea.tabIndex = 0
-    amountArea.addEventListener('click', () => this.openCalculatorPad())
-    amountArea.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return
-      e.preventDefault()
-      this.openCalculatorPad()
-    })
-    this.mobileAmountEl = amountArea.createDiv('pw-mobile-amount-display')
-    this.mobileDecimalPlaces = currencyDecimals(baseCurrency(config), config)
-    this.mobileCalculatorState = createMobileCalculatorState(this.amount, this.mobileDecimalPlaces)
-    this.updateAmountDisplay()
+    // Amount display (one hero, or two plus a rate line for a cross-currency transfer)
+    this.mobileAmountAreasEl = contentEl.createDiv('pw-mobile-amount-areas')
+    this.renderAmountAreas(config)
 
     // Error
     this.errorEl = contentEl.createDiv('pw-error pw-mobile-error')
@@ -204,9 +204,9 @@ export class MobileTransactionModal extends TransactionModal {
         this.mobileRowsEl,
         t('modal.fromWallet'),
         this.fromWallet || '—',
-        this.withEmptyOption(fromWallets.map(w => ({ key: w.name, label: w.name }))),
+        this.withEmptyOption(fromWallets.map(w => ({ key: w.name, label: this.walletLabel(w.name, config) }))),
         () => this.fromWallet,
-        (key) => { this.fromWallet = key },
+        (key) => { this.fromWallet = key; this.renderAmountAreas(config) },
         true,
       )
 
@@ -214,9 +214,9 @@ export class MobileTransactionModal extends TransactionModal {
         this.mobileRowsEl,
         t('modal.toWallet'),
         this.toWallet || '—',
-        this.withEmptyOption(toWallets.map(w => ({ key: w.name, label: w.name }))),
+        this.withEmptyOption(toWallets.map(w => ({ key: w.name, label: this.walletLabel(w.name, config) }))),
         () => this.toWallet,
-        (key) => { this.toWallet = key },
+        (key) => { this.toWallet = key; this.renderAmountAreas(config) },
         true,
       )
     } else {
@@ -224,9 +224,9 @@ export class MobileTransactionModal extends TransactionModal {
         this.mobileRowsEl,
         t('modal.wallet'),
         this.wallet || '—',
-        this.withEmptyOption(activeWallets.map(w => ({ key: w.name, label: w.name }))),
+        this.withEmptyOption(activeWallets.map(w => ({ key: w.name, label: this.walletLabel(w.name, config) }))),
         () => this.wallet,
-        (key) => { this.wallet = key },
+        (key) => { this.wallet = key; this.renderAmountAreas(config) },
         true,
       )
     }
@@ -380,14 +380,80 @@ export class MobileTransactionModal extends TransactionModal {
     return [{ key: '', label: '—' }, ...options]
   }
 
-  private openCalculatorPad() {
+  /**
+   * Rebuilds the hero amounts. A cross-currency transfer shows what is sent and
+   * what is received side by side, with the rate they imply between them.
+   */
+  private renderAmountAreas(config: PennyWalletConfig) {
+    this.mobileAmountAreasEl.empty()
+    this.mobileToAmountEl = null
+    this.mobileRateEl = null
+
+    const { from, to, isCross } = transferCurrencies(this.getFormState(), config)
+    const sentCode = this.type === 'transfer' ? from : this.currentAccountCurrency(config)
+
+    this.mobileDecimalPlaces = currencyDecimals(sentCode, config)
+    this.mobileCalculatorState = createMobileCalculatorState(this.amount, this.mobileDecimalPlaces)
+
+    this.mobileAmountAreasEl.toggleClass('is-split', isCross)
+    this.mobileAmountEl = this.buildAmountArea(
+      'sent', isCross ? t('modal.sentAmount') : '', sentCode, isCross)
+
+    if (isCross) {
+      this.mobileToDecimalPlaces = currencyDecimals(to, config)
+      this.mobileToCalculatorState = createMobileCalculatorState(this.toAmount, this.mobileToDecimalPlaces)
+      this.mobileToAmountEl = this.buildAmountArea('received', t('modal.receivedAmount'), to, true)
+
+      const rateRow = this.mobileAmountAreasEl.createDiv('pw-mobile-rate-row')
+      this.mobileRateEl = rateRow.createDiv('pw-mobile-rate')
+    } else {
+      this.toAmount = ''
+      this.mobileToCalculatorState = createMobileCalculatorState('', 0)
+    }
+
+    this.updateAmountDisplay()
+  }
+
+  private buildAmountArea(leg: AmountLeg, label: string, code: string, compact: boolean): HTMLElement {
+    const area = this.mobileAmountAreasEl.createDiv('pw-mobile-amount-area')
+    if (compact) area.addClass('is-compact')
+    area.dataset['leg'] = leg
+    area.setAttribute('role', 'button')
+    area.tabIndex = 0
+    area.addEventListener('click', () => this.openCalculatorPad(leg))
+    area.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      e.preventDefault()
+      this.openCalculatorPad(leg)
+    })
+    if (label) area.createDiv({ cls: 'pw-mobile-amount-label', text: `${label} (${code})` })
+    return area.createDiv('pw-mobile-amount-display')
+  }
+
+  private legState(leg: AmountLeg): MobileCalculatorState {
+    return leg === 'sent' ? this.mobileCalculatorState : this.mobileToCalculatorState
+  }
+
+  private setLegState(leg: AmountLeg, next: MobileCalculatorState) {
+    if (leg === 'sent') {
+      this.mobileCalculatorState = next
+      this.amount = next.amountValue
+    } else {
+      this.mobileToCalculatorState = next
+      this.toAmount = next.amountValue
+    }
+  }
+
+  private openCalculatorPad(leg: AmountLeg = 'sent') {
     this.clearError()
     if (this.mobileCalculatorPad) return
-    this.mobileCalculatorState = {
-      ...this.mobileCalculatorState,
-      amountValue: this.amount,
-      decimalPlaces: this.mobileDecimalPlaces,
-    }
+    this.activeLeg = leg
+    const decimals = leg === 'sent' ? this.mobileDecimalPlaces : this.mobileToDecimalPlaces
+    this.setLegState(leg, {
+      ...this.legState(leg),
+      amountValue: leg === 'sent' ? this.amount : this.toAmount,
+      decimalPlaces: decimals,
+    })
     this.contentEl.addClass('pw-mobile-calculator-active')
     const { sheet, titleEl, close } = openBottomSheetShell({
       containerEl: this.contentEl,
@@ -406,7 +472,7 @@ export class MobileTransactionModal extends TransactionModal {
     this.mobileCalculatorClose = close
     this.mobileCalculatorPad = new MobileCalculatorPad({
       parentEl: sheet,
-      initialState: this.mobileCalculatorState,
+      initialState: this.legState(leg),
       onKey: (key) => this.handleCalculatorKey(key),
     })
     this.updateAmountDisplay()
@@ -426,29 +492,51 @@ export class MobileTransactionModal extends TransactionModal {
 
   private handleCalculatorKey(key: MobileCalculatorKey) {
     this.clearError()
-    this.mobileCalculatorState = pressMobileCalculatorKey(this.mobileCalculatorState, key)
-    this.amount = this.mobileCalculatorState.amountValue
-    this.mobileCalculatorPad?.update(this.mobileCalculatorState)
+    const leg = this.activeLeg
+    const next = pressMobileCalculatorKey(this.legState(leg), key)
+    this.setLegState(leg, next)
+    this.mobileCalculatorPad?.update(next)
     this.updateAmountDisplay()
     this.updateCalculatorTitle()
-    if (key === 'done' && !this.mobileCalculatorState.errorKey && !this.mobileCalculatorState.isPendingExpression) {
+    if (key === 'done' && !next.errorKey && !next.isPendingExpression) {
       this.closeCalculatorPad()
     }
   }
 
   private updateAmountDisplay() {
-    if (!this.mobileAmountEl) return
-    const isEmpty = this.amount === ''
-    this.mobileAmountEl.textContent = formatMobileHeroAmount(this.amount, this.isRefund)
-    this.mobileAmountEl.toggleClass('is-empty', isEmpty)
+    if (this.mobileAmountEl) {
+      this.mobileAmountEl.textContent = formatMobileHeroAmount(this.amount, this.isRefund, this.heroSymbol('sent'))
+      this.mobileAmountEl.toggleClass('is-empty', this.amount === '')
+    }
+    if (this.mobileToAmountEl) {
+      this.mobileToAmountEl.textContent = formatMobileHeroAmount(this.toAmount, false, this.heroSymbol('received'))
+      this.mobileToAmountEl.toggleClass('is-empty', this.toAmount === '')
+    }
+    if (this.mobileRateEl) {
+      const config = this.walletFile.getConfig()
+      const { from, to } = transferCurrencies(this.getFormState(), config)
+      const rate = impliedRate(this.amount, this.toAmount)
+      this.mobileRateEl.textContent = rate === null
+        ? `${t('modal.exchangeRate')} —`
+        : `1 ${from} = ${rate.toFixed(4)} ${to}`
+    }
+  }
+
+  private heroSymbol(leg: AmountLeg): string {
+    const config = this.walletFile.getConfig()
+    const { from, to } = transferCurrencies(this.getFormState(), config)
+    if (leg === 'received') return getCurrency(to).symbol
+    const code = this.type === 'transfer' ? from : this.currentAccountCurrency(config)
+    return getCurrency(code).symbol
   }
 
   private updateCalculatorTitle() {
     if (!this.mobileCalculatorTitleEl) return
-    const expressionText = this.mobileCalculatorState.expressionText
+    const state = this.legState(this.activeLeg)
+    const expressionText = state.expressionText
     this.mobileCalculatorTitleEl.textContent = expressionText
     this.mobileCalculatorTitleEl.toggleClass('is-empty', expressionText === '')
-    this.mobileCalculatorTitleEl.toggleClass('is-warning', this.mobileCalculatorState.isPendingExpression)
+    this.mobileCalculatorTitleEl.toggleClass('is-warning', state.isPendingExpression)
   }
 
   private formatMobileDate(): string {
@@ -456,8 +544,9 @@ export class MobileTransactionModal extends TransactionModal {
   }
 
   protected async handleConfirm() {
-    if (this.mobileCalculatorState.submitBlocker) {
-      this.showError(t(this.mobileCalculatorState.submitBlocker))
+    const blocker = this.mobileCalculatorState.submitBlocker ?? this.mobileToCalculatorState.submitBlocker
+    if (blocker) {
+      this.showError(t(blocker))
       return
     }
     await super.handleConfirm()

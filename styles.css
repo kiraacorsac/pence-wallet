@@ -2827,3 +2827,61 @@ select.pw-add-wallet-input {
   flex: 1 1 120px;
   min-width: 0;
 }
+
+/* ── Cross-currency transfer amounts ───────────────────────────────────────── */
+
+/* Two heroes share the row, so each gets a smaller type scale than a lone one. */
+.pw-mobile-amount-areas.is-split {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.pw-mobile-amount-areas.is-split .pw-mobile-amount-area {
+  flex: 1 1 0;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.pw-mobile-amount-area.is-compact .pw-mobile-amount-display {
+  font-size: 30px;
+  min-height: 32px;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.pw-mobile-amount-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.pw-mobile-rate-row {
+  flex: 1 0 100%;
+  padding: 0 20px 8px;
+  text-align: center;
+}
+
+.pw-mobile-rate,
+.pw-exchange-rate {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pw-exchange-rate {
+  display: flex;
+  align-items: center;
+  border: none;
+  background: none;
+}
+
+.pw-amount-currency {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted);
+}

@@ -3,7 +3,8 @@ import { Transaction, TransactionType, TransactionModalParams, PennyWalletConfig
 import { WalletFile } from '../io/WalletFile'
 import { dateToYearMonth } from '../utils'
 import { t } from '../i18n'
-import { parseAmountForEdit, getCategoryOptions as getCategoryOptionsFromState, validateTransactionForm, buildTransactionPayload, type TransactionFormState } from './transactionState'
+import { parseAmountForEdit, getCategoryOptions as getCategoryOptionsFromState, validateTransactionForm, buildTransactionPayload, transferCurrencies, impliedRate, type TransactionFormState } from './transactionState'
+import { baseCurrency, currencyDecimals, getCurrency, walletCurrency } from '../money'
 import { buildTagInput } from './TagInput'
 import { ConfirmModal } from './ConfirmModal'
 
@@ -25,6 +26,7 @@ export class TransactionModal extends Modal {
   protected note: string = ''
   protected tags: string[] = []
   protected amount: string = ''
+  protected toAmount: string = ''
   protected isRefund: boolean = false
 
   // DOM refs
@@ -75,6 +77,7 @@ export class TransactionModal extends Modal {
       this.tags = tx.tags ? [...tx.tags] : []
       const parsed = parseAmountForEdit(tx.amount)
       this.amount = parsed.display
+      this.toAmount = tx.amountTo != null ? String(tx.amountTo) : ''
       this.isRefund = parsed.isRefund
     } else {
       this.type = (this.params.type as TransactionType) ?? 'expense'
@@ -89,6 +92,7 @@ export class TransactionModal extends Modal {
       this.note = this.params.note ?? ''
       this.tags = this.params.tags ? [...this.params.tags] : []
       this.amount = this.params.amount != null ? String(this.params.amount) : ''
+      this.toAmount = ''
     }
   }
 
@@ -221,9 +225,9 @@ export class TransactionModal extends Modal {
     if (this.type === 'expense' || this.type === 'income') {
       this.addField(this.fieldsEl, t('modal.wallet'), () => {
         return this.buildSelect(
-          activeWallets.map(w => ({ value: w.name, label: w.name })),
+          activeWallets.map(w => ({ value: w.name, label: this.walletLabel(w.name, config) })),
           this.wallet,
-          val => { this.wallet = val }
+          val => { this.wallet = val; this.renderFields(config, false) }
         )
       }, true)
 
@@ -233,16 +237,16 @@ export class TransactionModal extends Modal {
 
       this.addField(this.fieldsEl, t('modal.fromWallet'), () =>
         this.buildSelect(
-          fromWallets.map(w => ({ value: w.name, label: w.name })),
+          fromWallets.map(w => ({ value: w.name, label: this.walletLabel(w.name, config) })),
           this.fromWallet,
-          val => { this.fromWallet = val }
+          val => { this.fromWallet = val; this.renderFields(config, false) }
         ), true)
 
       this.addField(this.fieldsEl, t('modal.toWallet'), () =>
         this.buildSelect(
-          toWallets.map(w => ({ value: w.name, label: w.name })),
+          toWallets.map(w => ({ value: w.name, label: this.walletLabel(w.name, config) })),
           this.toWallet,
-          val => { this.toWallet = val }
+          val => { this.toWallet = val; this.renderFields(config, false) }
         ), true)
     }
 
@@ -259,35 +263,102 @@ export class TransactionModal extends Modal {
       return input
     })
 
-    this.buildAmountRow(autoFocus)
+    this.buildAmountRow(config, autoFocus)
   }
 
-  private buildAmountRow(autoFocus: boolean) {
-    const amountRow = this.fieldsEl.createDiv('pw-field-row')
-    amountRow.createEl('label', { text: t('modal.amount'), cls: 'pw-field-label' })
-    const amountWrapper = amountRow.createDiv('pw-amount-field-wrapper pw-field-input')
-    this.amountPrefixEl = amountWrapper.createSpan({ cls: 'pw-amount-prefix', text: '+' })
-    const dp = this.walletFile.getConfig().decimalPlaces ?? 0
-    const amountInput = amountWrapper.createEl('input', { type: 'number', placeholder: dp === 2 ? '0.00' : '0' })
-    amountInput.value = this.amount
-    amountInput.setAttribute('min', '0')
-    amountInput.setAttribute('step', dp === 2 ? '0.01' : '1')
-    amountInput.setAttribute('enterkeyhint', 'done')
-    amountInput.addEventListener('input', () => {
-      this.amount = amountInput.value
+  /** Account name, annotated with its currency once more than one is in play. */
+  protected walletLabel(name: string, config: PennyWalletConfig): string {
+    const wallet = config.wallets.find(w => w.name === name)
+    if (!wallet) return name
+    const codes = new Set(this.getActiveWallets(config).map(w => walletCurrency(w, config)))
+    if (codes.size < 2) return name
+    return `${name} (${walletCurrency(wallet, config)})`
+  }
+
+  private buildAmountRow(config: PennyWalletConfig, autoFocus: boolean) {
+    const { from, to, isCross } = transferCurrencies(this.getFormState(), config)
+
+    const sentCode = this.type === 'transfer' ? from : this.currentAccountCurrency(config)
+    const sentLabel = isCross ? t('modal.sentAmount') : t('modal.amount')
+
+    const amountInput = this.buildAmountInput(sentLabel, sentCode, config, this.amount, (value) => {
+      this.amount = value
       this.updateDesktopAmountPrefix()
+      updateRate()
+    }, true)
+
+    let rateEl: HTMLElement | null = null
+    let updateRate = () => { /* replaced below when a second amount exists */ }
+
+    if (isCross) {
+      this.buildAmountInput(t('modal.receivedAmount'), to, config, this.toAmount, (value) => {
+        this.toAmount = value
+        updateRate()
+      }, false)
+
+      const rateRow = this.fieldsEl.createDiv('pw-field-row')
+      rateRow.createEl('label', { text: t('modal.exchangeRate'), cls: 'pw-field-label' })
+      rateEl = rateRow.createDiv('pw-exchange-rate pw-field-input')
+
+      updateRate = () => {
+        if (!rateEl) return
+        const rate = impliedRate(this.amount, this.toAmount)
+        rateEl.textContent = rate === null
+          ? '—'
+          : `1 ${from} = ${rate.toFixed(4)} ${to}`
+      }
+      updateRate()
+    }
+
+    this.updateDesktopAmountPrefix()
+    if (autoFocus) setTimeout(() => amountInput.focus(), 50) // wait for modal open animation to complete
+  }
+
+  /** One labelled amount field. `isSent` owns the refund prefix and submit-on-Enter. */
+  private buildAmountInput(
+    label: string,
+    code: string,
+    config: PennyWalletConfig,
+    value: string,
+    onInput: (value: string) => void,
+    isSent: boolean,
+  ): HTMLInputElement {
+    const row = this.fieldsEl.createDiv('pw-field-row')
+    row.createEl('label', { text: label, cls: 'pw-field-label' })
+    const wrapper = row.createDiv('pw-amount-field-wrapper pw-field-input')
+
+    if (isSent) {
+      this.amountPrefixEl = wrapper.createSpan({ cls: 'pw-amount-prefix', text: '+' })
+    } else {
+      wrapper.createSpan({ cls: 'pw-amount-currency', text: getCurrency(code).symbol })
+    }
+
+    const dp = currencyDecimals(code, config)
+    const input = wrapper.createEl('input', {
+      type: 'number',
+      placeholder: dp > 0 ? `0.${'0'.repeat(dp)}` : '0',
     })
-    amountInput.addEventListener('keydown', (e) => {
+    input.value = value
+    input.setAttribute('min', '0')
+    input.setAttribute('step', dp > 0 ? `0.${'0'.repeat(dp - 1)}1` : '1')
+    input.setAttribute('enterkeyhint', 'done')
+    input.addEventListener('input', () => { onInput(input.value) })
+    input.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return
       e.preventDefault()
-      if (!this.amount) {
-        amountInput.blur()
+      if (!input.value) {
+        input.blur()
         return
       }
       void this.handleConfirm()
     })
-    this.updateDesktopAmountPrefix()
-    if (autoFocus) setTimeout(() => amountInput.focus(), 50) // wait for modal open animation to complete
+    return input
+  }
+
+  /** Currency of the account this expense or income is booked against. */
+  protected currentAccountCurrency(config: PennyWalletConfig): string {
+    const wallet = config.wallets.find(w => w.name === this.wallet)
+    return wallet ? walletCurrency(wallet, config) : baseCurrency(config)
   }
 
   private addField(container: HTMLElement, label: string, buildInput: () => HTMLElement, required = false) {
@@ -359,6 +430,7 @@ export class TransactionModal extends Modal {
     if (newType === 'expense' || newType === 'income') {
       this.fromWallet = ''
       this.toWallet = ''
+      this.toAmount = ''
     } else {
       this.wallet = ''
     }
@@ -395,6 +467,7 @@ export class TransactionModal extends Modal {
       note: this.note,
       tags: this.tags,
       amount: this.amount,
+      toAmount: this.toAmount,
       isRefund: this.isRefund,
     }
   }
@@ -435,7 +508,7 @@ export class TransactionModal extends Modal {
     if (!this.validate()) return
     this.isConfirming = true
 
-    const newTx = buildTransactionPayload(this.getFormState())
+    const newTx = buildTransactionPayload(this.getFormState(), this.walletFile.getConfig())
     const newYearMonth = dateToYearMonth(this.date)
 
     try {
