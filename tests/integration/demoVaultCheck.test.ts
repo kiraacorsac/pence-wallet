@@ -50,10 +50,18 @@ describe.skipIf(!hasVault)('the generated demo vault, read through the real code
     for (const [code, amount] of byCurrency) expected += amount * rateFor(config, code, last)
     expect(net).toBeCloseTo(expected, 4)
 
-    // the dated rate table actually bites: same holdings, two different prices
-    expect(rateFor(config, 'USD', '2025-11')).toBe(31.5)
-    expect(rateFor(config, 'USD', '2026-09')).toBe(32.4)
-    expect(wf.computeNetAsset(balances, '2025-11')).toBeLessThan(net)
+    // The dated rate table actually bites: same holdings, two different prices.
+    // Asserted against the seeded points only. A vault opened in Obsidian with
+    // rate downloads switched on carries an extra `source: 'auto'` point for the
+    // current month, which legitimately supersedes the fixture's newest rate.
+    const seeded = { ...config, rates: config.rates.filter(r => r.source !== 'auto') }
+    const seededWf = new WalletFile(app, createMockStore().store)
+    seededWf.updateConfig(seeded)
+
+    expect(rateFor(seeded, 'USD', '2025-11')).toBe(31.5)
+    expect(rateFor(seeded, 'USD', '2026-09')).toBe(32.4)
+    expect(seededWf.computeNetAsset(balances, '2025-11'))
+      .toBeLessThan(seededWf.computeNetAsset(balances, last))
 
     // each month's cached frontmatter matches what the transactions actually say
     for (const f of months) {
