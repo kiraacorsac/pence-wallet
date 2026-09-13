@@ -59,17 +59,28 @@ Moving money between two of your own accounts — including paying off a credit 
 | From Account | Yes | Source account |
 | To Account | Yes | Destination account |
 | Note | No | Free-text description |
-| Amount | Yes | Positive number |
+| Amount / Sent | Yes | Positive number, in the **From** account's currency |
+| Received | Only when the two accounts use different currencies | Positive number, in the **To** account's currency |
 
 **Transfer categories and their account rules:**
 
 | Category | From Account | To Account |
 |----------|-------------|------------|
 Any active account can be the source or the target, under any category. The **From**
-account decreases by the amount and the **To** account increases by it — nothing else.
+account decreases by the amount sent and the **To** account increases by the amount
+received — nothing else.
+
+When both accounts share a currency those are the same number and you only enter
+one. When they differ, a second **Received** field appears and you enter both
+sides yourself; PennyWallet shows the exchange rate they imply as you type, and
+stores both amounts so neither balance is distorted by a rate that later changes.
 
 **Example:** Pay NT$5,200 credit card bill from savings
 → Category: `Credit Card Payment`, From: `HSBC Savings`, To: `Visa Platinum`, Amount: `5200`
+
+**Example:** Buy US$500 with NT$16,200
+→ Category: `Account Transfer`, From: `HSBC Savings`, To: `Chase USD`, Sent: `16200`, Received: `500`
+(the modal shows `1 TWD = 0.0309 USD`)
 
 > See [Tracking a Credit Card](./credit-card-workflow) for a full walkthrough.
 

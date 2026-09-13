@@ -52,13 +52,19 @@ what it contributes to net asset.
 
 **Settings → PennyWallet → Add Account**
 
-Fill in the name, type, and initial balance, then click **Add Account** (or press Enter).
+Fill in the name, type, currency, and initial balance, then click **Add Account** (or press Enter).
+
+The **currency** defaults to your base currency. Set it to whatever the account is
+actually denominated in — every amount you record against the account is then in
+that currency, and its balance is shown with that currency's symbol and precision.
 
 ### Edit an account
 
-Click **Edit** next to any active account to change its name or initial balance.
+Click **Edit** next to any active account to change its name, currency, or initial balance.
 
 > Changing the **initial balance** recalculates all historical balances retroactively, since balances are always computed from inception.
+
+> Changing the **currency** of an account that already has transactions only changes how its stored amounts are *read* — it does not convert them. PennyWallet asks you to confirm, and no month file is rewritten. If you meant to convert, change the amounts yourself.
 
 ### Archive an account
 
@@ -80,6 +86,15 @@ If an account has **no transactions**, it can be deleted permanently.
 
 ## Net Asset Calculation
 
-Net Asset = sum of every included account balance (negative balances subtract)
+Net Asset = sum of every included account balance, each converted to your **base
+currency** first (negative balances subtract).
 
 Archived accounts are included if **Include in Net Assets** is toggled on.
+
+When your accounts span more than one currency, a breakdown line under the total
+shows what is held in each, so the single figure can be checked against the parts.
+
+Conversion uses the rate in force for the month being viewed, from
+**Settings → Exchange Rates**. A currency you have not given a rate is counted at
+1:1, which is almost never what you want — Settings flags any currency in use with
+no rate set.

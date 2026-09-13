@@ -42,6 +42,7 @@ export default defineConfig({
               { text: 'Getting Started', link: '/getting-started' },
               { text: 'Accounts', link: '/accounts' },
               { text: 'Transactions', link: '/transactions' },
+              { text: 'Multiple Currencies', link: '/currencies' },
               { text: 'Tracking a Credit Card', link: '/credit-card-workflow' },
               { text: 'Views', link: '/views' },
               { text: 'Settings', link: '/settings' },

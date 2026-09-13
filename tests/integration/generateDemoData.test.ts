@@ -34,7 +34,14 @@ describe('generate-demo-data', () => {
         .map(fileName => readFile(path.join(dataDir, fileName), 'utf8')),
     )).join('\n')
 
-    expect(monthContent).toContain('| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |')
+    expect(monthContent).toContain('| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | AmountTo | CreatedAt |')
+
+    // The demo vault is multi-currency, so it must exercise both of those paths.
+    expect(config.baseCurrency).toBe('TWD')
+    expect(config.wallets.some((w: { currency?: string }) => w.currency === 'USD')).toBe(true)
+    expect(config.rates.length).toBeGreaterThan(1)
+    expect(monthContent).toMatch(/income\.TWD: \d+/)
+    expect(monthContent).toMatch(/expense\.USD: [\d.]+/)
 
     const tagSet = new Set(config.tags)
     const tagCells = monthContent

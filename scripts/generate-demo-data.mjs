@@ -15,8 +15,11 @@ const seed = 20260403
 const CASH_WALLET = 'Default Wallet'
 const PRIMARY_BANK = 'HSBC Premier'
 const SECONDARY_BANK = 'Citibank'
+const FOREIGN_BANK = 'Chase USD'
 const PRIMARY_CARD = 'Visa Platinum'
 const SECONDARY_CARD = 'Mastercard World'
+
+const BASE_CURRENCY = 'TWD'
 
 const fixedTags = ['daily', 'essential', 'family', 'fun', 'health', 'invest', 'online', 'outing', 'travel', 'work']
 
@@ -56,7 +59,28 @@ const wallets = [
     status: 'active',
     includeInNetAsset: true,
   },
+  {
+    name: FOREIGN_BANK,
+    type: 'bank',
+    initialBalance: 1500,
+    status: 'active',
+    includeInNetAsset: true,
+    currency: 'USD',
+  },
+].map(w => ({ currency: BASE_CURRENCY, ...w }))
+
+// Two periods so the demo exercises the dated rate table rather than one rate.
+const rates = [
+  { code: 'USD', effectiveFrom: '2025-10', rate: 31.5 },
+  { code: 'USD', effectiveFrom: '2026-04', rate: 32.4 },
 ]
+
+function usdRate(year, monthIndex) {
+  const ym = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+  let match = rates[0]
+  for (const point of rates) if (point.effectiveFrom <= ym) match = point
+  return match.rate
+}
 
 // Categories are plain user-editable names. Transactions below still refer to
 // them by key; categoryLabel() maps key -> name in the one place it matters.
@@ -105,7 +129,9 @@ const config = {
   wallets,
   defaultWallet: CASH_WALLET,
   folderName: 'PennyWallet',
-  decimalPlaces: 0,
+  decimalPlaces: 'auto',
+  baseCurrency: BASE_CURRENCY,
+  rates,
   tags: fixedTags,
   options: {
     categories: {
@@ -245,6 +271,7 @@ function makeTransaction(date, type, partial) {
     note: partial.note ?? '',
     tags,
     amount: partial.amount,
+    amountTo: partial.amountTo,
     createdAt: createdAt.toISOString(),
   }
 }
@@ -252,23 +279,38 @@ function makeTransaction(date, type, partial) {
 function formatRow(tx) {
   const tags = tx.tags?.length ? tx.tags.join(',') : '-'
   const category = tx.category ? categoryLabel(tx.category) : '-'
-  return `| ${formatMonthDay(tx.date)} | ${tx.type} | ${tx.wallet ?? '-'} | ${tx.fromWallet ?? '-'} | ${tx.toWallet ?? '-'} | ${category} | ${tx.note || '-'} | ${tags} | ${tx.amount} | ${tx.createdAt ?? '-'} |`
+  return `| ${formatMonthDay(tx.date)} | ${tx.type} | ${tx.wallet ?? '-'} | ${tx.fromWallet ?? '-'} | ${tx.toWallet ?? '-'} | ${category} | ${tx.note || '-'} | ${tags} | ${tx.amount} | ${tx.amountTo ?? '-'} | ${tx.createdAt ?? '-'} |`
 }
 
+const walletCurrency = Object.fromEntries(wallets.map(w => [w.name, w.currency]))
+
 function computeSummary(transactions) {
-  let income = 0
-  let expense = 0
+  const income = new Map()
+  const expense = new Map()
   for (const tx of transactions) {
-    if (tx.type === 'income') income += tx.amount
-    if (tx.type === 'expense') expense += tx.amount
+    const target = tx.type === 'income' ? income : tx.type === 'expense' ? expense : null
+    if (!target) continue
+    const code = walletCurrency[tx.wallet] ?? BASE_CURRENCY
+    target.set(code, (target.get(code) ?? 0) + tx.amount)
   }
   return { income, expense, netAsset: 0 }
 }
 
+function frontmatterLines(prefix, amounts) {
+  return [...amounts.entries()]
+    .filter(([, amount]) => amount !== 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, amount]) => `${prefix}.${code}: ${amount}\n`)
+    .join('')
+}
+
 function buildMonthContent(yearMonth, transactions) {
   const summary = computeSummary(transactions)
-  const frontmatter = `---\nincome: ${summary.income}\nexpense: ${summary.expense}\nnetAsset: ${summary.netAsset}\n---\n`
-  const header = `\n## ${yearMonth}\n\n| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |\n|------|------|--------|------|----|----------|------|------|--------|-----------|`
+  const frontmatter = '---\n'
+    + frontmatterLines('income', summary.income)
+    + frontmatterLines('expense', summary.expense)
+    + `netAsset: ${summary.netAsset}\n---\n`
+  const header = `\n## ${yearMonth}\n\n| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | AmountTo | CreatedAt |\n|------|------|--------|------|----|----------|------|------|--------|----------|-----------|`
   const rows = transactions.map(formatRow).join('\n')
   return frontmatter + header + (rows ? `\n${rows}` : '') + '\n'
 }
@@ -283,7 +325,7 @@ function applyTransaction(state, tx) {
       break
     case 'transfer':
       if (tx.fromWallet) state.balances[tx.fromWallet] -= tx.amount
-      if (tx.toWallet) state.balances[tx.toWallet] += tx.amount
+      if (tx.toWallet) state.balances[tx.toWallet] += tx.amountTo ?? tx.amount
       break
   }
 }
@@ -395,6 +437,30 @@ function generateMonthTransactions(monthDate, state) {
     note: 'Transfer to Savings',
     amount: randInt(8000, 18000),
   }))
+
+  // Cross-currency: TWD leaves the primary bank, USD arrives at the foreign one.
+  // The two legs differ, and the rate they imply is the one in force that month.
+  const fxSent = randInt(9000, 22000)
+  const fxRate = usdRate(year, monthIndex)
+  transactions.push(makeTransaction(createDate(year, monthIndex, randInt(11, 15)), 'transfer', {
+    fromWallet: PRIMARY_BANK,
+    toWallet: FOREIGN_BANK,
+    category: 'account_transfer',
+    note: 'FX Purchase',
+    amount: fxSent,
+    amountTo: Math.round((fxSent / fxRate) * 100) / 100,
+  }))
+
+  // A couple of genuinely USD-denominated expenses on the USD account.
+  const usdSpends = randInt(1, 3)
+  for (let i = 0; i < usdSpends; i++) {
+    transactions.push(makeTransaction(createDate(year, monthIndex, randInt(3, 27)), 'expense', {
+      wallet: FOREIGN_BANK,
+      category: pick(['shopping', 'entertainment', 'transport']),
+      note: pick(['Online Subscription', 'Overseas Shopping', 'Travel Booking']),
+      amount: Math.round(randInt(800, 9000)) / 100,
+    }))
+  }
 
   // ── Fixed expenses ─────────────────────────────────────────────────────────
 

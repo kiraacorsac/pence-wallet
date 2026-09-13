@@ -63,6 +63,26 @@ Use an **Expense** on the same account and enable **This is a refund**. It is st
 
 Yes. Go to **Settings → PennyWallet → General → Decimal Places** and switch to **2 decimal places**. New transactions will accept `.00` amounts. Existing integer transactions are unaffected.
 
+If you hold several currencies, choose **Automatic (per currency)** instead — each currency then uses its own convention, so yen stay whole and dollars take cents.
+
+---
+
+### Can I track accounts in more than one currency?
+
+Yes. Each account has a **currency** in Settings, and every amount you record against it is in that currency.
+
+Set a **base currency** and, under **Settings → Exchange Rates**, a rate for each other currency you use. Individual accounts and transaction rows stay in their own currency; anything that combines accounts — net assets, monthly totals, the category pies — is converted to the base currency for you.
+
+Rates carry an **effective from** month, so past months keep the rate they were priced at instead of being restated whenever you add a new one. You enter rates yourself; PennyWallet never fetches them from anywhere.
+
+---
+
+### How do I record moving money between two currencies?
+
+Make a transfer as usual. When the two accounts use different currencies, a second amount field appears: enter what left the source account and what actually arrived in the destination.
+
+Both numbers are stored, so neither balance depends on an exchange rate you might change later, and the rate the two imply is shown as you type. This is also the honest way to capture a bank's spread and fees — the difference is simply part of what arrived.
+
 ---
 
 ### Where is my data stored? Is it synced?

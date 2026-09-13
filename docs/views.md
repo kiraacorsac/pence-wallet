@@ -33,7 +33,7 @@ Shows the **current running balance** of every active account, calculated from a
 
 An account you owe money on shows as a negative value.
 
-**Net Assets** at the bottom is the sum of every included account balance.
+**Net Assets** at the bottom is the sum of every included account balance, each converted to your base currency first. When more than one currency is held, a breakdown line underneath shows how much is in each.
 
 ### Asset Allocation Pie
 
@@ -89,7 +89,7 @@ Choose **3 months**, **6 months**, or **12 months**.
 
 Shows the current running balance for each active account. An account in debt shows as a negative value.
 
-**Net Assets** at the bottom is the sum of every included account balance.
+**Net Assets** at the bottom is the sum of every included account balance, each converted to your base currency first. When more than one currency is held, a breakdown line underneath shows how much is in each.
 
 ### Cashflow Metrics
 

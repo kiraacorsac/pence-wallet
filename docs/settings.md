@@ -18,16 +18,48 @@ The path is relative to the vault root. Change this if you want transactions sto
 
 The account pre-selected when opening the Add Transaction form. Choose any active account from the dropdown.
 
+### Base Currency
+
+The currency every combined figure is reported in — net assets, the monthly
+metrics, the transaction subtotals, and both category pies. Individual accounts
+and transaction rows stay in their own currency.
+
 ### Decimal Places
 
 Controls how amounts are stored and displayed.
 
 | Option | Use case |
 |--------|----------|
-| Integer (0 decimals) | Most currencies, NT dollars |
-| 2 decimal places | USD, EUR, or when cents matter |
+| Automatic (per currency) | Each currency uses its own convention: 0 for JPY and KRW, 2 for USD and EUR, 3 for the Gulf dinars |
+| Integer (0 decimals) | Force whole numbers everywhere |
+| 2 decimal places | Force two decimals everywhere |
+
+The two fixed options override every currency, which is what a single-currency
+vault usually wants. Pick **Automatic** once you hold more than one currency.
 
 > Changing this setting affects new transactions. Existing transactions stored as integers will display without decimals regardless.
+
+---
+
+## Exchange Rates
+
+Appears once any account uses a currency other than your base currency.
+
+Each currency gets its own list of rates, and each rate has an **effective from**
+month. A given month is converted using the latest rate effective on or before
+it, so past months keep the rate they were priced at rather than being restated
+every time you add a new one. A month earlier than your first rate uses that
+first rate.
+
+A rate is *how many units of the base currency one unit of that currency is
+worth* — with a TWD base, `USD 31.5` means one dollar is 31.5 dollars' worth of
+NT dollars.
+
+Rates are entered by hand; PennyWallet never fetches them. A currency in use with
+no rate at all is counted at 1:1 and called out in this section.
+
+> Rates affect reporting only. They never change a stored amount, and a
+> cross-currency transfer always keeps the two amounts you actually entered.
 
 ---
 
@@ -66,7 +98,8 @@ Lists archived accounts. Each row has:
 Fields:
 - **Name** — unique, cannot be empty
 - **Type** — Cash / Bank
-- **Initial Balance** — current balance. Use a negative number for an account you owe money on, such as a credit card
+- **Currency** — what the account is denominated in; defaults to your base currency
+- **Initial Balance** — current balance, in that account's currency. Use a negative number for an account you owe money on, such as a credit card
 
 Click **Add Account** or press **Enter** in any field to confirm.
 
