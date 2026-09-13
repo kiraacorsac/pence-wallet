@@ -38,15 +38,17 @@ describe.skipIf(!hasVault)('the generated demo vault, read through the real code
     expect(usd.balance).toBeGreaterThan(5000)
     expect(usd.balance).toBeLessThan(7000)
 
-    // net worth is base-currency and materially larger than the TWD-only part
+    // Net worth is the sum of its per-currency parts, each priced at that
+    // month's rate. Written over whatever currencies the vault happens to hold,
+    // since one opened in Obsidian may have had accounts added by hand.
     const last = months[months.length - 1]
     const net = wf.computeNetAsset(balances, last)
     const byCurrency = wf.netAssetByCurrency(balances)
     expect(byCurrency.get('USD')).toBeCloseTo(usd.balance, 6)
-    expect(net).toBeCloseTo(
-      (byCurrency.get('TWD') ?? 0) + (byCurrency.get('USD') ?? 0) * rateFor(config, 'USD', last),
-      4,
-    )
+
+    let expected = 0
+    for (const [code, amount] of byCurrency) expected += amount * rateFor(config, code, last)
+    expect(net).toBeCloseTo(expected, 4)
 
     // the dated rate table actually bites: same holdings, two different prices
     expect(rateFor(config, 'USD', '2025-11')).toBe(31.5)

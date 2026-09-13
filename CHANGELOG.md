@@ -2,6 +2,20 @@
 
 All notable changes to PennyWallet will be documented in this file.
 
+## [0.0.17] - 2026-09-13
+
+### Breaking
+- month files gained an 11th `AmountTo` column and per-currency frontmatter totals (`income.GBP: 3100`). Ten-column rows and bare `income:`/`expense:` keys still parse, but any month you edit is rewritten in the new format
+
+### Added
+- accounts have a currency, chosen from a built-in ISO 4217 list; a base currency and a dated exchange-rate table convert every combined figure (net assets, monthly metrics, subtotals, pies) at the rate in force for the month being viewed
+- transfers between accounts of different currencies take separate sent and received amounts, showing the rate they imply; both are stored, so neither balance depends on a rate you later change
+- decimal places can follow each currency's own convention (`Automatic`), instead of one global setting
+
+### Changed
+- balances and transaction rows read in their account's own currency; net assets shows a per-currency breakdown underneath
+- changing an account's currency asks for confirmation and reinterprets its amounts rather than converting them
+
 ## [0.0.16] - 2026-09-13
 
 ### Breaking
