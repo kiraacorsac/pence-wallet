@@ -270,9 +270,71 @@ function hashKey(key: string): number {
   return (h ^ (h >>> 16)) >>> 0
 }
 
-/** Palette slot for a category, derived from its key — not from its position. */
+/** Parses '#rgb', '#rrggbb' and 'rgb()/rgba()' into 0-255 channels; null otherwise. */
+function parseColor(color: string): [number, number, number] | null {
+  const hex = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hex) {
+    const h = hex[1]
+    const full = h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h
+    return [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16)) as [number, number, number]
+  }
+  const rgb = color.trim().match(/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i)
+  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+  return null
+}
+
+/** Converts parsed channels to HSL, each component 0-1 except hue (degrees). */
+function toHsl(r: number, g: number, b: number): [number, number, number] {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  const d = max - min
+  if (d === 0) return [0, 0, l]
+  const h = max === r ? ((g - b) / d + (g < b ? 6 : 0))
+    : max === g ? (b - r) / d + 2
+    : (r - g) / d + 4
+  return [h * 60, d / (1 - Math.abs(2 * l - 1)), l]
+}
+
+// Lightness rungs a shade may sit on: spread far enough apart to tell apart at
+// a glance, and legible against both the light and the dark theme.
+const SHADE_RUNGS = [0.30, 0.47, 0.64, 0.81]
+const SHADE_COUNT = 3
+
+/**
+ * Lightness of shade `index` for a base color of lightness `l`. Shades 1 and 2
+ * take the two rungs furthest from the base, so all three stay distinct even
+ * when the base itself is very light or very dark.
+ */
+function shadeLightness(l: number, index: number): number {
+  if (index === 0) return l
+  const [a, b] = [...SHADE_RUNGS]
+    .sort((x, y) => Math.abs(y - l) - Math.abs(x - l))
+    .slice(0, 2)
+    .sort((x, y) => y - x)
+  return index === 1 ? a : b
+}
+
+/**
+ * Returns shade `index` of `color`: hue and saturation are kept, only lightness
+ * moves, so every shade still reads as the same family. Shade 0 is the color
+ * itself, verbatim. Colors we cannot parse are returned untouched.
+ */
+export function shadeColor(color: string, index: number): string {
+  if (index === 0) return color
+  const parsed = parseColor(color)
+  if (!parsed) return color
+  const [h, s, l] = toHsl(...parsed.map(c => c / 255) as [number, number, number])
+  return `hsl(${Math.round(h)}, ${Math.round(s * 100)}%, ${Math.round(shadeLightness(l, index) * 100)}%)`
+}
+
+/**
+ * Palette slot for a category, derived from its key — not from its position.
+ * Each base color yields three shades, so more categories get a distinct color
+ * before two of them have to share one.
+ */
 export function categoryColor(key: string, palette: string[]): string {
-  return palette[hashKey(key) % palette.length]
+  const slot = hashKey(key) % (palette.length * SHADE_COUNT)
+  return shadeColor(palette[slot % palette.length], Math.floor(slot / palette.length))
 }
 
 /** Drops empty slices and orders the rest largest-first. */
