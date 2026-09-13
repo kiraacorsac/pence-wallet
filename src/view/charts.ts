@@ -259,17 +259,11 @@ export function filterPieData(data: Map<string, number>): Map<string, number> {
   const total = [...data.values()].reduce((a, b) => a + b, 0)
   if (total === 0) return new Map()
 
+  // Every category keeps its own segment, however small — no '__other__' bucket.
   const filtered = new Map<string, number>()
-  let otherTotal = 0
-
   for (const [key, value] of data) {
-    if ((value / total) * 100 >= 1) {
-      filtered.set(key, value)
-    } else {
-      otherTotal += value
-    }
+    if (value > 0) filtered.set(key, value)
   }
-  if (otherTotal > 0) filtered.set('__other__', otherTotal)
   return filtered
 }
 
@@ -285,11 +279,7 @@ export function drawPie(
 
   const segments: { key: string; label: string; value: number }[] = []
   for (const [key, value] of filtered) {
-    segments.push({
-      key,
-      label: key === '__other__' ? t('label.cat.other') : translateCategory(key),
-      value,
-    })
+    segments.push({ key, label: translateCategory(key), value })
   }
 
   const colors = getThemeColors()
@@ -337,9 +327,7 @@ export function drawPie(
       onClick: onSegmentClick
         ? (_, elements) => {
             if (!elements.length) return
-            const seg = segments[elements[0].index]
-            // __other__ navigates with no category filter (shows all of that type)
-            onSegmentClick(seg.key === '__other__' ? '' : seg.key)
+            onSegmentClick(segments[elements[0].index].key)
           }
         : undefined,
     },
@@ -351,7 +339,7 @@ export function drawPie(
     const item = legend.createDiv('pw-legend-item')
     if (onSegmentClick) {
       item.setCssProps({ cursor: 'pointer' })
-      item.addEventListener('click', () => onSegmentClick(seg.key === '__other__' ? '' : seg.key))
+      item.addEventListener('click', () => onSegmentClick(seg.key))
     }
     const dot = item.createEl('span', { cls: 'pw-legend-dot' })
     dot.setCssProps({ 'background-color': segColors[i] })
