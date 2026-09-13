@@ -2,7 +2,7 @@
 
 A personal finance tracker plugin for [Obsidian](https://obsidian.md). Log expenses, income, transfers, and refunds — all stored as plain Markdown tables in your vault.
 
-**Documentation:** [English](https://twrusstw.github.io/penny-wallet/) · [繁體中文](https://twrusstw.github.io/penny-wallet/zh/)
+**Documentation:** https://twrusstw.github.io/penny-wallet/
 
 ## Features
 
@@ -41,7 +41,7 @@ A personal finance tracker plugin for [Obsidian](https://obsidian.md). Log expen
 ## Getting started
 
 1. Enable PennyWallet — a wallet icon appears in the left ribbon
-2. Open **Settings → PennyWallet** and add your accounts with their current balances ([Settings guide](https://twrusstw.github.io/penny-wallet/settings) · [中文說明](https://twrusstw.github.io/penny-wallet/zh/settings))
+2. Open **Settings → PennyWallet** and add your accounts with their current balances ([Settings guide](https://twrusstw.github.io/penny-wallet/settings))
 3. Click the ribbon icon or run **Add transaction** from the Command Palette to log your first entry
 
 ## Transaction types
