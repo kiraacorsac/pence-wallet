@@ -4,12 +4,8 @@ import { TFile } from 'obsidian'
  * Create an in-memory Obsidian App mock backed by a simple Map.
  * Pass initial files as { 'path/to/file.md': 'content' }.
  */
-export function createMockApp(
-  initialFiles: Record<string, string> = {},
-  options: { hiddenPaths?: string[] } = {},
-) {
+export function createMockApp(initialFiles: Record<string, string> = {}) {
   const store = new Map<string, string>(Object.entries(initialFiles))
-  const hiddenPaths = new Set(options.hiddenPaths ?? [])
 
   const makeTFile = (path: string) => Object.assign(new TFile(), {
     path,
@@ -18,16 +14,8 @@ export function createMockApp(
   })
 
   const vault = {
-    getAbstractFileByPath: (path: string) => {
-      if (hiddenPaths.has(path)) return null
-      if (store.has(path)) return makeTFile(path)
-      return null
-    },
-    getFileByPath: (path: string) => {
-      if (hiddenPaths.has(path)) return null
-      if (store.has(path)) return makeTFile(path)
-      return null
-    },
+    getAbstractFileByPath: (path: string) => store.has(path) ? makeTFile(path) : null,
+    getFileByPath: (path: string) => store.has(path) ? makeTFile(path) : null,
     getFolderByPath: (path: string) => {
       const children = [...store.keys()]
         .filter(p => {

@@ -116,7 +116,9 @@ const config = {
   },
 }
 
-const configPath = path.join(vaultRoot, '.penny-wallet.json')
+const pluginDir = path.join(vaultRoot, '.obsidian', 'plugins', 'penny-wallet')
+const configPath = path.join(pluginDir, 'data.json')
+const legacyConfigPath = path.join(vaultRoot, '.penny-wallet.json')
 const dataDir = path.join(vaultRoot, config.folderName)
 const legacyDataDirs = ['PennyWallet', 'ledgers']
   .filter(dirName => dirName !== config.folderName)
@@ -518,10 +520,13 @@ async function removeLegacyDataDirs() {
   await Promise.all(legacyDataDirs.map(async (dirPath) => {
     await fs.rm(dirPath, { recursive: true, force: true })
   }))
+  // Config moved into the plugin's data.json; drop the old vault-root dotfile.
+  await fs.rm(legacyConfigPath, { force: true })
 }
 
 async function main() {
   await fs.mkdir(dataDir, { recursive: true })
+  await fs.mkdir(pluginDir, { recursive: true })
   await removeLegacyDataDirs()
   await clearExistingMonthFiles()
   await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8')

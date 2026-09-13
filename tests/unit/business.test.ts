@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { WalletFile } from '../../src/io/WalletFile'
 import { createMockApp } from '../helpers/mockApp'
+import { createMockStore } from '../helpers/mockStore'
 import type { Wallet, Transaction, WalletBalance } from '../../src/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeWalletFile(wallets: Wallet[]): WalletFile {
   const { app } = createMockApp()
-  const wf = new WalletFile(app)
+  const wf = new WalletFile(app, createMockStore().store)
   wf.updateConfig({ wallets })
   return wf
 }

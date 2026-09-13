@@ -6,12 +6,12 @@ import {
   MonthSummary,
   PennyWalletConfig,
   PennyWalletOptions,
+  SettingsStore,
   DEFAULT_CONFIG,
 } from '../types'
 import type { Wallet, FrontmatterIssue, OrphanedWalletIssue, ValidationIssue } from '../types'
 import { seedDefaultCategories } from '../i18n'
 
-const ROOT_CONFIG_PATH = normalizePath('.penny-wallet.json')
 const TABLE_HEADER = `| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |
 |------|------|--------|------|----|----------|------|------|--------|-----------|`
 
@@ -157,11 +157,13 @@ function txDateOrder(a: Transaction, b: Transaction): number {
 
 export class WalletFile {
   private app: App
+  private store: SettingsStore
   private config: PennyWalletConfig = { ...DEFAULT_CONFIG }
   private createdDefaultConfigOnLastLoad = false
 
-  constructor(app: App) {
+  constructor(app: App, store: SettingsStore) {
     this.app = app
+    this.store = store
   }
 
   get folderName(): string {
@@ -173,24 +175,23 @@ export class WalletFile {
   async loadConfig(): Promise<PennyWalletConfig> {
     this.createdDefaultConfigOnLastLoad = false
 
-    const path = ROOT_CONFIG_PATH
-    const file = this.app.vault.getFileByPath(path)
+    let parsed: Partial<PennyWalletConfig> | null = null
+    let readFailed = false
+    try {
+      const raw = await this.store.loadData()
+      if (raw && typeof raw === 'object') parsed = raw as Partial<PennyWalletConfig>
+    } catch {
+      readFailed = true
+    }
 
-    if (!file) {
-      // Root dotfiles may be omitted from Obsidian's vault index; adapter access keeps existing configs readable.
-      const existsOnDisk = await this.app.vault.adapter.exists(path)
-      if (existsOnDisk) {
-        try {
-          const raw = await this.app.vault.adapter.read(path)
-          const parsed = JSON.parse(raw) as Partial<PennyWalletConfig>
-          this.config = { ...DEFAULT_CONFIG, ...parsed, options: this.normalizeOptions(parsed) }
-        } catch {
-          this.config = { ...DEFAULT_CONFIG, options: { categories: seedDefaultCategories() } }
-        }
-        return this.config
-      }
+    // Unreadable store: fall back in memory, but never overwrite what is on disk.
+    if (readFailed) {
+      this.config = { ...DEFAULT_CONFIG, options: { categories: seedDefaultCategories() } }
+      return this.config
+    }
 
-      // Truly first launch: create locale-aware default config
+    if (!parsed) {
+      // First launch: locale-aware default config, persisted immediately.
       await this.ensureFolder()
       const cashName = this.getLocaleCashName()
       this.config = {
@@ -204,13 +205,7 @@ export class WalletFile {
       return this.config
     }
 
-    try {
-      const raw = await this.app.vault.read(file)
-      const parsed = JSON.parse(raw) as Partial<PennyWalletConfig>
-      this.config = { ...DEFAULT_CONFIG, ...parsed, options: this.normalizeOptions(parsed) }
-    } catch {
-      this.config = { ...DEFAULT_CONFIG, options: { categories: seedDefaultCategories() } }
-    }
+    this.config = { ...DEFAULT_CONFIG, ...parsed, options: this.normalizeOptions(parsed) }
     return this.config
   }
 
@@ -263,9 +258,7 @@ export class WalletFile {
   }
 
   async saveConfig(): Promise<void> {
-    const path = ROOT_CONFIG_PATH
-    const content = JSON.stringify(this.config, null, 2)
-    await this.vaultWrite(path, content, true)
+    await this.store.saveData(this.config)
   }
 
   getConfig(): PennyWalletConfig {
@@ -322,7 +315,7 @@ export class WalletFile {
     await this.vaultWrite(path, content)
   }
 
-  private async vaultWrite(path: string, content: string, adapterFallback = false): Promise<void> {
+  private async vaultWrite(path: string, content: string): Promise<void> {
     const file = this.app.vault.getFileByPath(path)
     if (file) {
       await this.app.vault.process(file, () => content)
@@ -335,8 +328,6 @@ export class WalletFile {
       const retryFile = this.app.vault.getFileByPath(path)
       if (retryFile) {
         await this.app.vault.process(retryFile, () => content)
-      } else if (adapterFallback) {
-        await this.app.vault.adapter.write(path, content)
       }
     }
   }

@@ -16,7 +16,7 @@ export default class PennyWalletPlugin extends Plugin {
   async onload() {
     initI18n()
 
-    this.walletFile = new WalletFile(this.app)
+    this.walletFile = new WalletFile(this.app, this)
 
     // ── All synchronous registrations FIRST (so ribbon/commands survive restart) ──
     this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this.walletFile))

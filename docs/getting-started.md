@@ -87,7 +87,7 @@ PennyWallet creates:
 
 ```
 <vault>/
-├── .penny-wallet.json     ← your config (accounts, categories, settings)
+├── .obsidian/plugins/penny-wallet/data.json   ← your config (accounts, categories, settings)
 └── PennyWallet/           ← one .md file per month
     ├── 2026-04.md
     └── 2026-03.md

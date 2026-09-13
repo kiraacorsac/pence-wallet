@@ -2,15 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { WalletFile, parseMonthFile, parseFrontmatter } from '../../src/io/WalletFile'
 import { DEFAULT_CONFIG } from '../../src/types'
 import { createMockApp } from '../helpers/mockApp'
+import { createMockStore } from '../helpers/mockStore'
 import type { Transaction } from '../../src/types'
 
 // ── Setup helper ──────────────────────────────────────────────────────────────
 
 async function makeWalletFile(initialFiles: Record<string, string> = {}) {
   const config = { ...DEFAULT_CONFIG, folderName: 'Ledgers' }
-  const files = { '.penny-wallet.json': JSON.stringify(config), ...initialFiles }
-  const { app, store } = createMockApp(files)
-  const wf = new WalletFile(app)
+  const { app, store } = createMockApp(initialFiles)
+  const wf = new WalletFile(app, createMockStore(config).store)
   await wf.loadConfig()
   return { wf, store }
 }
@@ -202,8 +202,8 @@ describe('getNetAssetTimeline', () => {
       folderName: 'Ledgers',
       wallets: [{ name: 'Bank', type: 'bank' as const, initialBalance: 0, status: 'active' as const, includeInNetAsset: true }],
     }
-    const { app } = createMockApp({ '.penny-wallet.json': JSON.stringify(config) })
-    const wf = new WalletFile(app)
+    const { app } = createMockApp()
+    const wf = new WalletFile(app, createMockStore(config).store)
     await wf.loadConfig()
 
     // Write income in Jan, expense in Feb
@@ -257,8 +257,8 @@ describe('getWalletBalanceTrend', () => {
         { name: 'Bank', type: 'bank' as const, initialBalance: 500, status: 'active' as const, includeInNetAsset: true },
       ],
     }
-    const { app } = createMockApp({ '.penny-wallet.json': JSON.stringify(config) })
-    const wf = new WalletFile(app)
+    const { app } = createMockApp()
+    const wf = new WalletFile(app, createMockStore(config).store)
     await wf.loadConfig()
 
     await wf.writeTransaction({ date: '01/10', type: 'expense', wallet: 'Cash', category: 'food', note: '', amount: 200 }, '2026-01')
@@ -281,8 +281,8 @@ describe('getWalletBalanceTrend', () => {
         { name: 'Old', type: 'bank' as const, initialBalance: 0, status: 'archived' as const, includeInNetAsset: true },
       ],
     }
-    const { app } = createMockApp({ '.penny-wallet.json': JSON.stringify(config) })
-    const wf = new WalletFile(app)
+    const { app } = createMockApp()
+    const wf = new WalletFile(app, createMockStore(config).store)
     await wf.loadConfig()
 
     const trend = await wf.getWalletBalanceTrend(['2026-01'])
@@ -398,7 +398,7 @@ describe('getLocaleCashName', () => {
 
   it('uses Chinese wallet name when locale is zh', async () => {
     const { app } = createMockApp()   // no config file → first launch
-    const wf = new WalletFile(app)
+    const wf = new WalletFile(app, createMockStore().store)
     await wf.loadConfig()
     const config = wf.getConfig()
     expect(config.wallets[0].name).toBe('預設錢包')

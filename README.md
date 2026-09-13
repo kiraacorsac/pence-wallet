@@ -108,7 +108,7 @@ Transactions are stored as Markdown tables, one file per month:
 
 ```
 <vault>/
-├── .penny-wallet.json     ← config (accounts, categories, settings)
+├── .obsidian/plugins/penny-wallet/data.json   ← config (accounts, categories, settings)
 └── PennyWallet/
     ├── 2026-04.md
     └── 2026-03.md

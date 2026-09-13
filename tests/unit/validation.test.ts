@@ -6,6 +6,7 @@ import {
 } from '../../src/io/WalletFile'
 import type { Transaction, Wallet } from '../../src/types'
 import type { App } from 'obsidian'
+import { createMockStore } from '../helpers/mockStore'
 
 const makeExpense = (wallet: string, amount: number): Transaction => ({
   date: '04/01', type: 'expense', wallet, note: '', amount,
@@ -103,8 +104,8 @@ describe('detectOrphanedWallets', () => {
 // ── repairOrphanedWallet (config mutation) ───────────────────────────────────
 
 describe('repairOrphanedWallet', () => {
-  function makeApp(configJson: string) {
-    const files = new Map<string, string>([['.penny-wallet.json', configJson]])
+  function makeApp() {
+    const files = new Map<string, string>()
     return {
       vault: {
         getFileByPath: (p: string) => files.has(p) ? { path: p } : null,
@@ -127,7 +128,7 @@ describe('repairOrphanedWallet', () => {
     } as unknown as App
   }
 
-  const baseConfig = JSON.stringify({
+  const baseConfig = {
     wallets: [{ name: 'A', type: 'bank', initialBalance: 0, status: 'active', includeInNetAsset: true }],
     defaultWallet: 'A',
     folderName: 'PW',
@@ -137,11 +138,11 @@ describe('repairOrphanedWallet', () => {
     },
     tags: [],
     autoValidateOnLoad: true,
-  })
+  }
 
   it('adds orphan as archived wallet to config', async () => {
-    const app = makeApp(baseConfig)
-    const wf = new WalletFile(app as App)
+    const app = makeApp()
+    const wf = new WalletFile(app as App, createMockStore(baseConfig).store)
     await wf.loadConfig()
     await wf.repairOrphanedWallet('Ghost')
     const config = wf.getConfig()
@@ -152,8 +153,8 @@ describe('repairOrphanedWallet', () => {
   })
 
   it('does not duplicate if wallet already exists', async () => {
-    const app = makeApp(baseConfig)
-    const wf = new WalletFile(app as App)
+    const app = makeApp()
+    const wf = new WalletFile(app as App, createMockStore(baseConfig).store)
     await wf.loadConfig()
     await wf.repairOrphanedWallet('A')
     const count = wf.getConfig().wallets.filter(w => w.name === 'A').length

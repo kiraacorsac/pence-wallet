@@ -41,6 +41,12 @@ export interface PennyWalletOptions {
   }
 }
 
+/** The slice of Obsidian's Plugin API that config persistence needs. */
+export interface SettingsStore {
+  loadData(): Promise<unknown>
+  saveData(data: unknown): Promise<void>
+}
+
 export interface PennyWalletConfig {
   wallets: Wallet[]
   defaultWallet: string

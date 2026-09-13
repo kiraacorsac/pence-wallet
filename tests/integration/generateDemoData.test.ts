@@ -23,7 +23,7 @@ describe('generate-demo-data', () => {
       cwd: path.resolve(__dirname, '../..'),
     })
 
-    const config = JSON.parse(await readFile(path.join(vaultRoot, '.penny-wallet.json'), 'utf8'))
+    const config = JSON.parse(await readFile(path.join(vaultRoot, '.obsidian', 'plugins', 'penny-wallet', 'data.json'), 'utf8'))
     expect(config.tags).toEqual(['daily', 'essential', 'family', 'fun', 'health', 'invest', 'online', 'outing', 'travel', 'work'])
 
     const dataDir = path.join(vaultRoot, 'PennyWallet')

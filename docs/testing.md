@@ -255,13 +255,15 @@ export function createMockApp(initialFiles: Record<string, string> = {}) {
 
 `store` is exposed directly for assertions — no need to re-read through the API. `Object.assign(new TFile(), {...})` ensures `instanceof TFile` works correctly because TFile's TypeScript types don't expose constructor parameters.
 
+Plugin config does not live in the vault, so it has its own mock in `tests/helpers/mockStore.ts`: `createMockStore(initial)` stands in for Obsidian's `loadData`/`saveData` pair (pass nothing to simulate a first launch), and `createFailingStore()` covers an unreadable config. `WalletFile` takes both: `new WalletFile(app, store)`.
+
 ### Config I/O (`tests/integration/config.test.ts`)
 
 | Scenario | Expected |
 |----------|---------|
-| No config file on disk (first launch) | creates `.penny-wallet.json` with locale cash name |
-| Config at `.penny-wallet.json` | loads and returns it |
-| Malformed JSON | falls back to `DEFAULT_CONFIG` |
+| No stored data (first launch) | writes a default config with locale cash name via `saveData` |
+| Config returned by `loadData` | loads and returns it |
+| Store cannot be read | falls back to `DEFAULT_CONFIG` without overwriting |
 | `saveConfig` after `updateConfig` | persists patch to in-memory vault |
 | `getConfig` after `updateConfig` | returns latest in-memory value |
 

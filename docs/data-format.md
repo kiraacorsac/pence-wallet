@@ -8,7 +8,7 @@ PennyWallet stores all data as plain text files in your vault. No proprietary da
 
 ```
 <vault>/
-├── .penny-wallet.json       ← plugin config
+├── .obsidian/plugins/penny-wallet/data.json   ← plugin config
 └── PennyWallet/             ← monthly transaction files (folder name configurable)
     ├── 2026-04.md
     ├── 2026-03.md
@@ -65,9 +65,10 @@ The `income`, `expense`, and `netAsset` fields at the top are a cache used for f
 
 ---
 
-## Config File: `.penny-wallet.json`
+## Config File: `data.json`
 
-Stored at the **vault root** (not inside the transactions folder).
+Stored where Obsidian keeps every plugin's settings —
+`.obsidian/plugins/penny-wallet/data.json` — not inside the transactions folder.
 
 ```json
 {
@@ -108,8 +109,13 @@ Stored at the **vault root** (not inside the transactions folder).
 
 PennyWallet reads the current format only — ten columns per row, and category lists as
 plain arrays. It never rewrites your files to upgrade them. A vault written by a much
-older version may need its `.penny-wallet.json` and month files adjusted by hand; they
+older version may need its `data.json` and month files adjusted by hand; they
 are plain text, so any editor will do.
+
+Versions up to 0.0.15 kept the config in `.penny-wallet.json` at the vault root. There is
+no automatic migration: copy that file's contents into
+`.obsidian/plugins/penny-wallet/data.json` (creating it if needed), restart Obsidian, and
+delete the old dotfile. The JSON shape is unchanged.
 
 ---
 
@@ -118,8 +124,11 @@ are plain text, so any editor will do.
 The plain Markdown format works seamlessly with Obsidian Git or any other sync plugin:
 
 - Each month is a separate file → minimal merge conflicts
-- The config file changes only when you update settings or accounts
 - Binary files: none
+
+Your config now lives under `.obsidian/`, so it syncs with Obsidian's plugin settings
+rather than with the vault's Markdown. Sync setups that exclude `.obsidian/` will carry
+your transactions but not your accounts, categories, or tags.
 
 ---
 
