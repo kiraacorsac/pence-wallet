@@ -121,34 +121,34 @@ describe('computeNetAsset', () => {
   it('a negative balance subtracts from net asset', () => {
     const wf = makeWalletFile([BANK, CARD])
     const balances: WalletBalance[] = [
-      { wallet: BANK, balance: 5000 },
-      { wallet: CARD, balance: -300 },
+      { wallet: BANK, balance: 5000, currency: 'USD' },
+      { wallet: CARD, balance: -300, currency: 'USD' },
     ]
-    expect(wf.computeNetAsset(balances)).toBe(4700)
+    expect(wf.computeNetAsset(balances, '2026-04')).toBe(4700)
   })
 
   it('sums bank and cash balances', () => {
     const wf = makeWalletFile([BANK, CASH])
     const balances: WalletBalance[] = [
-      { wallet: BANK, balance: 5000 },
-      { wallet: CASH, balance: 1000 },
+      { wallet: BANK, balance: 5000, currency: 'USD' },
+      { wallet: CASH, balance: 1000, currency: 'USD' },
     ]
-    expect(wf.computeNetAsset(balances)).toBe(6000)
+    expect(wf.computeNetAsset(balances, '2026-04')).toBe(6000)
   })
 
   it('excludes wallet with includeInNetAsset: false', () => {
     const archived: Wallet = { ...BANK, name: 'OldBank', includeInNetAsset: false }
     const wf = makeWalletFile([CASH, archived])
     const balances: WalletBalance[] = [
-      { wallet: CASH, balance: 1000 },
-      { wallet: archived, balance: 9999 }, // should be excluded
+      { wallet: CASH, balance: 1000, currency: 'USD' },
+      { wallet: archived, balance: 9999, currency: 'USD' }, // should be excluded
     ]
-    expect(wf.computeNetAsset(balances)).toBe(1000)
+    expect(wf.computeNetAsset(balances, '2026-04')).toBe(1000)
   })
 
   it('returns 0 for empty balances', () => {
     const wf = makeWalletFile([])
-    expect(wf.computeNetAsset([])).toBe(0)
+    expect(wf.computeNetAsset([], '2026-04')).toBe(0)
   })
 })
 
@@ -161,7 +161,7 @@ describe('computeSummary', () => {
       { date: '04/01', type: 'expense', wallet: 'Cash', category: 'food', note: '', amount: 200 },
       { date: '04/02', type: 'expense', wallet: 'Cash', category: 'transport', note: '', amount: 50 },
     ]
-    expect(wf.computeSummary(txs)).toEqual({ income: 0, expense: 250, netAsset: 0 })
+    expect(wf.computeSummary(txs)).toEqual({ income: new Map(), expense: new Map([['USD', 250]]), netAsset: 0 })
   })
 
   it('sums only income transactions', () => {
@@ -169,7 +169,7 @@ describe('computeSummary', () => {
     const txs: Transaction[] = [
       { date: '04/01', type: 'income', wallet: 'Bank', category: 'salary', note: '', amount: 50000 },
     ]
-    expect(wf.computeSummary(txs)).toEqual({ income: 50000, expense: 0, netAsset: 0 })
+    expect(wf.computeSummary(txs)).toEqual({ income: new Map([['USD', 50000]]), expense: new Map(), netAsset: 0 })
   })
 
   it('excludes transfer from totals', () => {
@@ -178,7 +178,7 @@ describe('computeSummary', () => {
       { date: '04/01', type: 'transfer', fromWallet: 'Bank', toWallet: 'Cash', note: '', amount: 1000 },
       { date: '04/02', type: 'transfer', category: 'Credit Card Payment', fromWallet: 'Bank', toWallet: 'Card', note: '', amount: 500 },
     ]
-    expect(wf.computeSummary(txs)).toEqual({ income: 0, expense: 0, netAsset: 0 })
+    expect(wf.computeSummary(txs)).toEqual({ income: new Map(), expense: new Map(), netAsset: 0 })
   })
 
   it('always returns netAsset: 0', () => {
@@ -193,7 +193,7 @@ describe('computeSummary', () => {
       { date: '04/01', type: 'expense', wallet: 'Bank', category: 'food', note: '', amount: 300 },
       { date: '04/02', type: 'expense', wallet: 'Bank', category: 'food', note: '退款', amount: -100 },
     ]
-    expect(wf.computeSummary(txs)).toEqual({ income: 0, expense: 200, netAsset: 0 })
+    expect(wf.computeSummary(txs)).toEqual({ income: new Map(), expense: new Map([['USD', 200]]), netAsset: 0 })
   })
 })
 
@@ -207,7 +207,7 @@ describe('groupByCategory', () => {
       { date: '04/01', type: 'expense', wallet: 'Cash', category: 'food', note: '', amount: 100 },
       { date: '04/02', type: 'expense', wallet: 'Cash', category: 'food', note: '', amount: 200 },
     ]
-    const map = wf.groupByCategory(txs, 'expense')
+    const map = wf.groupByCategory(txs, 'expense', '2026-04')
     expect(map.get('food')).toBe(300)
   })
 
@@ -215,7 +215,7 @@ describe('groupByCategory', () => {
     const txs: Transaction[] = [
       { date: '04/01', type: 'expense', wallet: 'Cash', note: '', amount: 50 },
     ]
-    const map = wf.groupByCategory(txs, 'expense')
+    const map = wf.groupByCategory(txs, 'expense', '2026-04')
     expect(map.get('')).toBe(50)
   })
 
@@ -224,7 +224,7 @@ describe('groupByCategory', () => {
       { date: '04/01', type: 'income', wallet: 'Bank', category: 'salary', note: '', amount: 10000 },
       { date: '04/02', type: 'expense', wallet: 'Cash', category: 'food', note: '', amount: 100 },
     ]
-    const map = wf.groupByCategory(txs, 'expense')
+    const map = wf.groupByCategory(txs, 'expense', '2026-04')
     expect(map.has('salary')).toBe(false)
     expect(map.get('food')).toBe(100)
   })
@@ -233,7 +233,7 @@ describe('groupByCategory', () => {
     const txs: Transaction[] = [
       { date: '04/01', type: 'income', wallet: 'Bank', category: 'salary', note: '', amount: 1000 },
     ]
-    const map = wf.groupByCategory(txs, 'expense')
+    const map = wf.groupByCategory(txs, 'expense', '2026-04')
     expect(map.size).toBe(0)
   })
 })

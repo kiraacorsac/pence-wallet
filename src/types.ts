@@ -24,15 +24,20 @@ export interface Wallet {
   currency?: string       // ISO 4217 code; absent means the config's base currency
 }
 
+/**
+ * Monthly totals, split by currency so the cache stays exact and independent of
+ * whatever exchange rates happen to be configured. Keys are ISO codes.
+ */
 export interface MonthSummary {
-  income: number
-  expense: number
+  income: Map<string, number>
+  expense: Map<string, number>
   netAsset: number
 }
 
 export interface WalletBalance {
   wallet: Wallet
-  balance: number   // may be negative
+  balance: number   // may be negative; in `currency`, not the base currency
+  currency: string
 }
 
 export interface PennyWalletOptions {
@@ -135,10 +140,10 @@ export const DEFAULT_CONFIG: PennyWalletConfig = {
 export interface FrontmatterIssue {
   type: 'frontmatter'
   yearMonth: string
-  storedIncome: number
-  storedExpense: number
-  actualIncome: number
-  actualExpense: number
+  storedIncome: Map<string, number>
+  storedExpense: Map<string, number>
+  actualIncome: Map<string, number>
+  actualExpense: Map<string, number>
 }
 
 export interface OrphanedWalletIssue {

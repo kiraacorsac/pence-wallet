@@ -163,3 +163,35 @@ export function toBase(
 ): number {
   return convert(amount, from, baseCurrency(config), config, yearMonth)
 }
+
+/** Total a per-currency map in the base currency, at `yearMonth`'s rates. */
+export function sumToBase(
+  amounts: Map<string, number>,
+  config: PennyWalletConfig,
+  yearMonth: string,
+): number {
+  let total = 0
+  for (const [code, amount] of amounts) total += toBase(amount, code, config, yearMonth)
+  return total
+}
+
+/**
+ * Render a per-currency map for display, e.g. "£1,240.50 · $890.00".
+ * Codes are listed in a stable order so two maps can be compared by eye.
+ */
+export function formatMoneyMap(amounts: Map<string, number>, config: PennyWalletConfig): string {
+  const parts = [...amounts.entries()]
+    .filter(([, amount]) => amount !== 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, amount]) => formatMoney(amount, code, config))
+  return parts.length ? parts.join(' · ') : formatMoney(0, baseCurrency(config), config)
+}
+
+/** Whether two per-currency maps hold the same non-zero totals. */
+export function moneyMapsEqual(a: Map<string, number>, b: Map<string, number>): boolean {
+  const codes = new Set([...a.keys(), ...b.keys()])
+  for (const code of codes) {
+    if ((a.get(code) ?? 0) !== (b.get(code) ?? 0)) return false
+  }
+  return true
+}

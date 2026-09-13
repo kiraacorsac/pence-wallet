@@ -11,21 +11,30 @@ import {
 } from '../types'
 import type { Wallet, FrontmatterIssue, OrphanedWalletIssue, ValidationIssue } from '../types'
 import { seedDefaultCategories } from '../i18n'
+import { baseCurrency, moneyMapsEqual, toBase, walletCurrency } from '../money'
 
-const TABLE_HEADER = `| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | CreatedAt |
-|------|------|--------|------|----|----------|------|------|--------|-----------|`
+const TABLE_HEADER = `| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | AmountTo | CreatedAt |
+|------|------|--------|------|----|----------|------|------|--------|----------|-----------|`
 
 // ─── Markdown Table Parsing ───────────────────────────────────────────────────
 
+/**
+ * Accepts both the 11-column layout and the 10-column one written before
+ * AmountTo existed, so a vault is readable without being rewritten.
+ */
 export function parseRow(line: string): Transaction | null {
   const cols = line.split('|').map(c => c.trim()).filter((_, i, a) => i > 0 && i < a.length - 1)
-  // date type wallet from to category note tags amount createdAt
-  if (cols.length !== 10) return null
-  const [date, type, wallet, fromWallet, toWallet, category, note, tagsStr, amountStr, createdAtStr] = cols
+  // date type wallet from to category note tags amount [amountTo] createdAt
+  if (cols.length !== 10 && cols.length !== 11) return null
+  const [date, type, wallet, fromWallet, toWallet, category, note, tagsStr, amountStr] = cols
+  const amountToStr = cols.length === 11 ? cols[9] : '-'
+  const createdAtStr = cols.length === 11 ? cols[10] : cols[9]
   if (!date || !type) return null
 
   const amount = parseFloat(amountStr)
   if (isNaN(amount)) return null
+
+  const amountTo = (amountToStr && amountToStr !== '-') ? parseFloat(amountToStr) : NaN
 
   return {
     date,
@@ -37,6 +46,7 @@ export function parseRow(line: string): Transaction | null {
     note:       note       === '-' ? '' : note,
     tags:       (tagsStr && tagsStr !== '-') ? tagsStr.split(',').filter(t => t.length > 0) : undefined,
     amount,
+    amountTo:   isNaN(amountTo) ? undefined : amountTo,
     createdAt:  (createdAtStr && createdAtStr !== '-') ? createdAtStr : undefined,
   }
 }
@@ -51,8 +61,9 @@ export function formatRow(tx: Transaction): string {
   const note = tx.note || '-'
   const tags = tx.tags?.length ? tx.tags.join(',') : '-'
   const amount = tx.amount
+  const amountTo = tx.amountTo ?? '-'
   const createdAt = tx.createdAt ?? '-'
-  return `| ${d} | ${type} | ${wallet} | ${from} | ${to} | ${cat} | ${note} | ${tags} | ${amount} | ${createdAt} |`
+  return `| ${d} | ${type} | ${wallet} | ${from} | ${to} | ${cat} | ${note} | ${tags} | ${amount} | ${amountTo} | ${createdAt} |`
 }
 
 export function parseMonthFile(content: string): Transaction[] {
@@ -79,19 +90,49 @@ export function parseMonthFile(content: string): Transaction[] {
   return transactions
 }
 
-export function parseFrontmatter(content: string): Partial<MonthSummary> {
+/**
+ * Totals are stored per currency as `income.GBP: 3100`. A bare `income:` key is
+ * how every file written before multi-currency looks; it is read as the base
+ * currency, which is exactly right for a vault that had only one until now.
+ */
+export function parseFrontmatter(content: string, baseCurrencyCode: string): Partial<MonthSummary> {
   const match = content.match(/^---\n([\s\S]*?)\n---/)
   if (!match) return {}
-  const fm: Record<string, number> = {}
+
+  const income = new Map<string, number>()
+  const expense = new Map<string, number>()
+  let netAsset: number | undefined
+
   for (const line of match[1].split('\n')) {
-    const [key, val] = line.split(':').map(s => s.trim())
-    if (key && val) fm[key] = parseFloat(val)
+    const idx = line.indexOf(':')
+    if (idx === -1) continue
+    const key = line.slice(0, idx).trim()
+    const value = parseFloat(line.slice(idx + 1).trim())
+    if (!key || isNaN(value)) continue
+
+    if (key === 'netAsset') netAsset = value
+    else if (key === 'income') income.set(baseCurrencyCode, value)
+    else if (key === 'expense') expense.set(baseCurrencyCode, value)
+    else if (key.startsWith('income.')) income.set(key.slice('income.'.length), value)
+    else if (key.startsWith('expense.')) expense.set(key.slice('expense.'.length), value)
   }
-  return { income: fm['income'], expense: fm['expense'], netAsset: fm['netAsset'] }
+
+  return { income, expense, netAsset }
+}
+
+function frontmatterLines(prefix: string, amounts: Map<string, number>): string {
+  return [...amounts.entries()]
+    .filter(([, amount]) => amount !== 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, amount]) => `${prefix}.${code}: ${amount}\n`)
+    .join('')
 }
 
 export function buildMonthContent(yearMonth: string, transactions: Transaction[], summary: MonthSummary): string {
-  const frontmatter = `---\nincome: ${summary.income}\nexpense: ${summary.expense}\nnetAsset: ${summary.netAsset}\n---\n`
+  const frontmatter = '---\n'
+    + frontmatterLines('income', summary.income)
+    + frontmatterLines('expense', summary.expense)
+    + `netAsset: ${summary.netAsset}\n---\n`
   const heading = `\n## ${yearMonth}\n\n`
   const rows = transactions.map(formatRow).join('\n')
   return frontmatter + heading + TABLE_HEADER + (rows ? '\n' + rows : '') + '\n'
@@ -99,18 +140,25 @@ export function buildMonthContent(yearMonth: string, transactions: Transaction[]
 
 // ─── Validation Helpers (pure functions) ─────────────────────────────────────
 
+/**
+ * Compares per-currency totals, so the check stays exact and is unaffected by
+ * later edits to the exchange-rate table.
+ */
 export function detectFrontmatterIssues(
   yearMonth: string,
   transactions: Transaction[],
-  stored: { income: number; expense: number },
+  stored: { income: Map<string, number>; expense: Map<string, number> },
+  currencyOf: (tx: Transaction) => string,
 ): FrontmatterIssue[] {
-  let actualIncome = 0
-  let actualExpense = 0
+  const actualIncome = new Map<string, number>()
+  const actualExpense = new Map<string, number>()
   for (const tx of transactions) {
-    if (tx.type === 'income') actualIncome += tx.amount
-    else if (tx.type === 'expense') actualExpense += tx.amount
+    const target = tx.type === 'income' ? actualIncome : tx.type === 'expense' ? actualExpense : null
+    if (!target) continue
+    const code = currencyOf(tx)
+    target.set(code, (target.get(code) ?? 0) + tx.amount)
   }
-  if (actualIncome === stored.income && actualExpense === stored.expense) return []
+  if (moneyMapsEqual(actualIncome, stored.income) && moneyMapsEqual(actualExpense, stored.expense)) return []
   return [{
     type: 'frontmatter',
     yearMonth,
@@ -343,9 +391,10 @@ export class WalletFile {
   async readMonthSummary(yearMonth: string): Promise<MonthSummary | null> {
     const content = await this.readMonthFile(yearMonth)
     if (!content) return null
-    const fm = parseFrontmatter(content)
-    if (fm.income === undefined || fm.expense === undefined || fm.netAsset === undefined) return null
-    return { income: fm.income, expense: fm.expense, netAsset: fm.netAsset }
+    const fm = parseFrontmatter(content, baseCurrency(this.config))
+    // netAsset is always written, so its absence is what marks an uncached month.
+    if (fm.netAsset === undefined) return null
+    return { income: fm.income ?? new Map<string, number>(), expense: fm.expense ?? new Map<string, number>(), netAsset: fm.netAsset }
   }
 
   // ── Write / Edit / Delete ────────────────────────────────────────────────────
@@ -439,6 +488,7 @@ export class WalletFile {
       tx.date === target.date &&
       tx.type === target.type &&
       tx.amount === target.amount &&
+      (tx.amountTo ?? null) === (target.amountTo ?? null) &&
       tx.note === target.note &&
       (tx.wallet ?? '') === (target.wallet ?? '') &&
       (tx.fromWallet ?? '') === (target.fromWallet ?? '') &&
@@ -460,7 +510,7 @@ export class WalletFile {
 
     for (const file of files) {
       const content = await this.app.vault.read(file)
-      const fm = parseFrontmatter(content)
+      const fm = parseFrontmatter(content, baseCurrency(this.config))
       if (fm.netAsset === undefined) {
         const yearMonth = file.basename
         await this.recalculateFrontmatter(yearMonth)
@@ -493,12 +543,14 @@ export class WalletFile {
       const transactions = parseMonthFile(content)
       monthData.set(ym, transactions)
 
-      const fm = parseFrontmatter(content)
-      if (fm.income !== undefined && fm.expense !== undefined && fm.netAsset !== undefined) {
-        const fmIssues = detectFrontmatterIssues(ym, transactions, {
-          income: fm.income,
-          expense: fm.expense,
-        })
+      const fm = parseFrontmatter(content, baseCurrency(this.config))
+      if (fm.netAsset !== undefined) {
+        const fmIssues = detectFrontmatterIssues(
+          ym,
+          transactions,
+          { income: fm.income ?? new Map<string, number>(), expense: fm.expense ?? new Map<string, number>() },
+          tx => this.txCurrency(tx),
+        )
         issues.push(...fmIssues)
       }
     }
@@ -554,6 +606,13 @@ export class WalletFile {
     return { balances: this.computeWalletBalances(allTransactions), walletsWithTransactions }
   }
 
+  /** The currency an expense or income row is denominated in. */
+  private txCurrency(tx: Transaction): string {
+    const name = tx.wallet ?? tx.fromWallet
+    const wallet = this.config.wallets.find(w => w.name === name)
+    return wallet ? walletCurrency(wallet, this.config) : baseCurrency(this.config)
+  }
+
   computeWalletBalances(transactions: Transaction[]): WalletBalance[] {
     const { wallets } = this.config
 
@@ -569,38 +628,53 @@ export class WalletFile {
     return wallets.map(w => ({
       wallet: w,
       balance: balanceMap.get(w.name) ?? w.initialBalance,
+      currency: walletCurrency(w, this.config),
     }))
   }
 
-  computeNetAsset(walletBalances: WalletBalance[]): number {
+  /** Net worth in the base currency, priced at `yearMonth`'s rates. */
+  computeNetAsset(walletBalances: WalletBalance[], yearMonth: string): number {
     let net = 0
-    for (const { wallet, balance } of walletBalances) {
+    for (const { wallet, balance, currency } of walletBalances) {
       if (!wallet.includeInNetAsset) continue
-      net += balance
+      net += toBase(balance, currency, this.config, yearMonth)
     }
     return net
+  }
+
+  /** Net worth split by the currency it is actually held in. */
+  netAssetByCurrency(walletBalances: WalletBalance[]): Map<string, number> {
+    const result = new Map<string, number>()
+    for (const { wallet, balance, currency } of walletBalances) {
+      if (!wallet.includeInNetAsset) continue
+      result.set(currency, (result.get(currency) ?? 0) + balance)
+    }
+    return result
   }
 
   // ── Summary for a single month ───────────────────────────────────────────────
 
   computeSummary(transactions: Transaction[]): MonthSummary {
-    let income = 0
-    let expense = 0
+    const income = new Map<string, number>()
+    const expense = new Map<string, number>()
     for (const tx of transactions) {
-      if (tx.type === 'income') income += tx.amount
-      if (tx.type === 'expense') expense += tx.amount
+      const target = tx.type === 'income' ? income : tx.type === 'expense' ? expense : null
+      if (!target) continue
+      const code = this.txCurrency(tx)
+      target.set(code, (target.get(code) ?? 0) + tx.amount)
     }
     // netAsset in monthly frontmatter = approximation; Dashboard re-computes from walletBalances
     return { income, expense, netAsset: 0 }
   }
 
-  /** Group transactions by category for pie chart */
-  groupByCategory(transactions: Transaction[], type: 'expense' | 'income'): Map<string, number> {
+  /** Group transactions by category for pie chart, totalled in the base currency. */
+  groupByCategory(transactions: Transaction[], type: 'expense' | 'income', yearMonth: string): Map<string, number> {
     const map = new Map<string, number>()
     for (const tx of transactions) {
       if (tx.type !== type) continue
       const key = tx.category ?? ''
-      map.set(key, (map.get(key) ?? 0) + tx.amount)
+      const value = toBase(tx.amount, this.txCurrency(tx), this.config, yearMonth)
+      map.set(key, (map.get(key) ?? 0) + value)
     }
     return map
   }
@@ -638,7 +712,7 @@ export class WalletFile {
     yearMonths.forEach((ym, i) => {
       const total = allTxs[i]
         .filter(tx => tx.category === category)
-        .reduce((sum, tx) => sum + tx.amount, 0)
+        .reduce((sum, tx) => sum + toBase(tx.amount, this.txCurrency(tx), this.config, ym), 0)
       result.set(ym, total)
     })
     return result
@@ -695,7 +769,7 @@ export class WalletFile {
         this.applyTxToBalanceMap(tx, balanceMap)
       }
       if (targetMonths.includes(relevantMonths[i])) {
-        result.set(relevantMonths[i], this.computeNetAssetFromMap(balanceMap))
+        result.set(relevantMonths[i], this.computeNetAssetFromMap(balanceMap, relevantMonths[i]))
       }
     }
 
@@ -714,17 +788,18 @@ export class WalletFile {
         add(tx.wallet, tx.amount)
         break
       case 'transfer':
+        // A cross-currency transfer credits what actually arrived, not what left.
         add(tx.fromWallet, -tx.amount)
-        add(tx.toWallet, tx.amount)
+        add(tx.toWallet, tx.amountTo ?? tx.amount)
         break
     }
   }
 
-  private computeNetAssetFromMap(map: Map<string, number>): number {
+  private computeNetAssetFromMap(map: Map<string, number>, yearMonth: string): number {
     let net = 0
     for (const w of this.config.wallets) {
       if (!w.includeInNetAsset) continue
-      net += map.get(w.name) ?? 0
+      net += toBase(map.get(w.name) ?? 0, walletCurrency(w, this.config), this.config, yearMonth)
     }
     return net
   }

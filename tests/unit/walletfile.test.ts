@@ -8,7 +8,11 @@ const FOLDER = 'PennyWallet'
 const CASH: Wallet = { name: 'Cash', type: 'cash', initialBalance: 1000, status: 'active', includeInNetAsset: true }
 
 function monthFile(ym: string, txs: Transaction[], income = 0, expense = 0): string {
-  return buildMonthContent(ym, txs, { income, expense, netAsset: 0 })
+  return buildMonthContent(ym, txs, {
+    income: new Map([['USD', income]]),
+    expense: new Map([['USD', expense]]),
+    netAsset: 0,
+  })
 }
 
 const TX: Transaction = {
@@ -45,8 +49,9 @@ describe('recalculateFrontmatter', () => {
     const wf = new WalletFile(app, createMockStore().store)
     await wf.recalculateFrontmatter('2026-04')
     const content = store.get(`${FOLDER}/2026-04.md`) ?? ''
-    expect(content).toContain('expense: 100')
-    expect(content).toContain('income: 0')
+    expect(content).toContain('expense.USD: 100')
+    // zero totals are simply absent from the per-currency frontmatter
+    expect(content).not.toContain('income.')
   })
 
   it('returns early when month file does not exist', async () => {

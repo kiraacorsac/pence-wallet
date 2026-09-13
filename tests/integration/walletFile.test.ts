@@ -73,9 +73,9 @@ describe('writeTransaction', () => {
     await wf.writeTransaction(EXPENSE, '2026-04') // 150
 
     const content = store.get('Ledgers/2026-04.md')!
-    const fm = parseFrontmatter(content)
-    expect(fm.expense).toBe(150)
-    expect(fm.income).toBe(0)
+    const fm = parseFrontmatter(content, 'USD')
+    expect(fm.expense?.get('USD') ?? 0).toBe(150)
+    expect(fm.income?.get('USD') ?? 0).toBe(0)
   })
 
   it('updates frontmatter income total for income transaction', async () => {
@@ -83,9 +83,9 @@ describe('writeTransaction', () => {
     const income: Transaction = { date: '04/10', type: 'income', wallet: 'Default Wallet', category: 'salary', note: 'Salary', amount: 50000 }
     await wf.writeTransaction(income, '2026-04')
 
-    const fm = parseFrontmatter(store.get('Ledgers/2026-04.md')!)
-    expect(fm.income).toBe(50000)
-    expect(fm.expense).toBe(0)
+    const fm = parseFrontmatter(store.get('Ledgers/2026-04.md')!, 'USD')
+    expect(fm.income?.get('USD') ?? 0).toBe(50000)
+    expect(fm.expense?.get('USD') ?? 0).toBe(0)
   })
 })
 
@@ -112,8 +112,8 @@ describe('updateTransaction', () => {
     const updated: Transaction = { ...EXPENSE, amount: 300 }
     await wf.updateTransaction(EXPENSE, '2026-04', updated, '2026-04')
 
-    const fm = parseFrontmatter(store.get('Ledgers/2026-04.md')!)
-    expect(fm.expense).toBe(300)
+    const fm = parseFrontmatter(store.get('Ledgers/2026-04.md')!, 'USD')
+    expect(fm.expense?.get('USD') ?? 0).toBe(300)
   })
 
   it('moves transaction cross-month (deletes from old, inserts in new)', async () => {
@@ -187,8 +187,8 @@ describe('deleteTransaction', () => {
     await wf.writeTransaction(EXPENSE, '2026-04')
     await wf.deleteTransaction(EXPENSE, '2026-04')
 
-    const fm = parseFrontmatter(store.get('Ledgers/2026-04.md')!)
-    expect(fm.expense).toBe(0)
+    const fm = parseFrontmatter(store.get('Ledgers/2026-04.md')!, 'USD')
+    expect(fm.expense?.get('USD') ?? 0).toBe(0)
   })
 })
 
@@ -369,9 +369,9 @@ describe('getMonthSummaries', () => {
 
     const summaries = await wf.getMonthSummaries(['2026-03', '2026-04'])
 
-    expect(summaries.get('2026-04')?.expense).toBe(150)
-    expect(summaries.get('2026-04')?.income).toBe(0)
-    expect(summaries.get('2026-03')?.income).toBe(5000)
+    expect(summaries.get('2026-04')?.expense.get('USD') ?? 0).toBe(150)
+    expect(summaries.get('2026-04')?.income.get('USD') ?? 0).toBe(0)
+    expect(summaries.get('2026-03')?.income.get('USD') ?? 0).toBe(5000)
   })
 
   it('skips months with no file', async () => {

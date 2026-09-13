@@ -125,18 +125,22 @@ netAsset: 0
 describe('parseFrontmatter', () => {
   it('parses valid frontmatter', () => {
     const content = '---\nincome: 60000\nexpense: 12450\nnetAsset: 0\n---\n\n## body'
-    expect(parseFrontmatter(content)).toEqual({ income: 60000, expense: 12450, netAsset: 0 })
+    expect(parseFrontmatter(content, 'USD')).toEqual({
+      income: new Map([['USD', 60000]]),
+      expense: new Map([['USD', 12450]]),
+      netAsset: 0,
+    })
   })
 
   it('returns empty object when no frontmatter', () => {
-    expect(parseFrontmatter('## 2026-04\n\nsome content')).toEqual({})
+    expect(parseFrontmatter('## 2026-04\n\nsome content', 'USD')).toEqual({})
   })
 
   it('handles partial frontmatter (missing keys are undefined)', () => {
     const content = '---\nincome: 1000\n---\n'
-    const fm = parseFrontmatter(content)
-    expect(fm.income).toBe(1000)
-    expect(fm.expense).toBeUndefined()
+    const fm = parseFrontmatter(content, 'USD')
+    expect(fm.income?.get('USD')).toBe(1000)
+    expect(fm.expense?.size).toBe(0)
     expect(fm.netAsset).toBeUndefined()
   })
 })
@@ -195,12 +199,16 @@ describe('formatRow', () => {
 // ── buildMonthContent ─────────────────────────────────────────────────────────
 
 describe('buildMonthContent', () => {
-  const summary: MonthSummary = { income: 60000, expense: 250, netAsset: 0 }
+  const summary: MonthSummary = {
+    income: new Map([['USD', 60000]]),
+    expense: new Map([['USD', 250]]),
+    netAsset: 0,
+  }
 
   it('contains frontmatter with correct values', () => {
     const content = buildMonthContent('2026-04', [], summary)
-    expect(content).toContain('income: 60000')
-    expect(content).toContain('expense: 250')
+    expect(content).toContain('income.USD: 60000')
+    expect(content).toContain('expense.USD: 250')
     expect(content).toContain('netAsset: 0')
   })
 

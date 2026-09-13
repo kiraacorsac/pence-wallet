@@ -1,12 +1,12 @@
 import { Events, ItemView, WorkspaceLeaf } from 'obsidian'
 import { WalletFile } from '../io/WalletFile'
 import { t, formatMonthLabel, formatYearMonth } from '../i18n'
-import { formatAmount } from '../utils'
+import { formatAmount, currentYearMonth } from '../utils'
 import { renderSharedHeader } from './SharedHeader'
 import { Chart } from 'chart.js'
 import { MonthData, drawNetChart, drawPie, getMonthRange } from './charts'
 import { renderCard } from './components'
-import { baseCurrency, currencyDecimals } from '../money'
+import { baseCurrency, currencyDecimals, sumToBase } from '../money'
 
 export const ASSET_VIEW_TYPE = 'penny-wallet-asset'
 
@@ -60,8 +60,10 @@ export class AssetView extends ItemView {
       this.walletFile.getNetAssetTimeline(months),
     ])
 
-    const netAsset = this.walletFile.computeNetAsset(walletBalances)
-    const dp = currencyDecimals(baseCurrency(this.walletFile.getConfig()), this.walletFile.getConfig())
+    const config = this.walletFile.getConfig()
+    const base = baseCurrency(config)
+    const netAsset = this.walletFile.computeNetAsset(walletBalances, currentYearMonth())
+    const dp = currencyDecimals(base, config)
 
     renderSharedHeader(contentEl, {
       view: this,
@@ -135,8 +137,8 @@ export class AssetView extends ItemView {
     const data: MonthData[] = months.map(ym => ({
       monthLabel: formatMonthLabel(ym),
       tooltipLabel: formatYearMonth(ym, 'short'),
-      income: summaries.get(ym)?.income ?? 0,
-      expense: summaries.get(ym)?.expense ?? 0,
+      income: sumToBase(summaries.get(ym)?.income ?? new Map<string, number>(), config, ym),
+      expense: sumToBase(summaries.get(ym)?.expense ?? new Map<string, number>(), config, ym),
       net: netTimeline.get(ym) ?? null,
     }))
 

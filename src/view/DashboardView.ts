@@ -8,7 +8,7 @@ import { DETAIL_VIEW_TYPE } from './DetailView'
 import { renderSharedHeader } from './SharedHeader'
 import { Chart } from 'chart.js'
 import { MonthData, drawIncExpChart, drawPie, getMonthRangeEndingAt } from './charts'
-import { baseCurrency, currencyDecimals } from '../money'
+import { baseCurrency, currencyDecimals, sumToBase } from '../money'
 
 export const DASHBOARD_VIEW_TYPE = 'penny-wallet-dashboard'
 
@@ -70,7 +70,8 @@ export class DashboardView extends ItemView {
       onMonthChange: (ym) => { this.currentYearMonth = ym; void this.render() },
     })
 
-    const dp = currencyDecimals(baseCurrency(this.walletFile.getConfig()), this.walletFile.getConfig())
+    const config = this.walletFile.getConfig()
+    const dp = currencyDecimals(baseCurrency(config), config)
 
     // ── Monthly metrics ──────────────────────────────────────────────────────
     let monthIncome = 0, monthExpense = 0
@@ -92,8 +93,8 @@ export class DashboardView extends ItemView {
     const data: MonthData[] = months.map(ym => ({
       monthLabel: formatMonthLabel(ym),
       tooltipLabel: formatYearMonth(ym, 'short'),
-      income: summaries.get(ym)?.income ?? 0,
-      expense: summaries.get(ym)?.expense ?? 0,
+      income: sumToBase(summaries.get(ym)?.income ?? new Map<string, number>(), config, ym),
+      expense: sumToBase(summaries.get(ym)?.expense ?? new Map<string, number>(), config, ym),
       net: netTimeline.get(ym) ?? null,
     }))
 
@@ -110,8 +111,8 @@ export class DashboardView extends ItemView {
     // ── Category pies ────────────────────────────────────────────────────────
     const gridRight = grid2.createDiv('pw-grid-right')
 
-    const expenseMap = this.walletFile.groupByCategory(transactions, 'expense')
-    const incomeMap  = this.walletFile.groupByCategory(transactions, 'income')
+    const expenseMap = this.walletFile.groupByCategory(transactions, 'expense', this.currentYearMonth)
+    const incomeMap  = this.walletFile.groupByCategory(transactions, 'income', this.currentYearMonth)
 
     const expCard = renderCard(gridRight, { title: t('dash.expenseByCategory') })
     if (expenseMap.size > 0) this.charts.push(drawPie(expCard, expenseMap, dp, (cat) => { void this.openDetailWithFilter('expense', cat) }, 200))

@@ -2,6 +2,7 @@ import { App, Modal, Notice } from 'obsidian'
 import { WalletFile } from '../io/WalletFile'
 import type { ValidationIssue } from '../types'
 import { t, tn } from '../i18n'
+import { formatMoneyMap } from '../money'
 
 export class ValidationModal extends Modal {
   private issues: ValidationIssue[]
@@ -44,6 +45,8 @@ export class ValidationModal extends Modal {
     const frontmatterIssues = this.issues.filter(i => i.type === 'frontmatter')
     const orphanIssues = this.issues.filter(i => i.type === 'orphanedWallet')
 
+    const config = this.walletFile.getConfig()
+
     if (frontmatterIssues.length > 0) {
       const sectionA = container.createDiv('pw-validation-section')
       sectionA.createEl('span', { text: t('validation.frontmatterSection'), cls: 'pw-validation-section-label' })
@@ -53,10 +56,10 @@ export class ValidationModal extends Modal {
         card.createEl('p', {
           text: tn('validation.frontmatterDesc', {
             month: issue.yearMonth,
-            actualIncome: String(issue.actualIncome),
-            storedIncome: String(issue.storedIncome),
-            actualExpense: String(issue.actualExpense),
-            storedExpense: String(issue.storedExpense),
+            actualIncome: formatMoneyMap(issue.actualIncome, config),
+            storedIncome: formatMoneyMap(issue.storedIncome, config),
+            actualExpense: formatMoneyMap(issue.actualExpense, config),
+            storedExpense: formatMoneyMap(issue.storedExpense, config),
           }),
           cls: 'pw-validation-card-text',
         })

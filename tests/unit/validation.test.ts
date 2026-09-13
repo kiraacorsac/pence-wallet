@@ -18,6 +18,9 @@ const makeWallet = (name: string, status: 'active' | 'archived' = 'active'): Wal
   name, type: 'bank', initialBalance: 0, status, includeInNetAsset: true,
 })
 
+/** A single-currency total, the shape every pre-multi-currency vault has. */
+const money = (n: number) => new Map(n === 0 ? [] : [['USD', n] as [string, number]])
+
 // ── detectFrontmatterIssues ──────────────────────────────────────────────────
 
 describe('detectFrontmatterIssues', () => {
@@ -26,7 +29,7 @@ describe('detectFrontmatterIssues', () => {
       makeExpense('A', 100),
       { date: '04/02', type: 'income', wallet: 'A', note: '', amount: 200 },
     ]
-    const issues = detectFrontmatterIssues('2026-04', txs, { income: 200, expense: 100, })
+    const issues = detectFrontmatterIssues('2026-04', txs, { income: money(200), expense: money(100) }, () => 'USD')
     expect(issues).toHaveLength(0)
   })
 
@@ -34,24 +37,24 @@ describe('detectFrontmatterIssues', () => {
     const txs: Transaction[] = [
       { date: '04/02', type: 'income', wallet: 'A', note: '', amount: 500 },
     ]
-    const issues = detectFrontmatterIssues('2026-04', txs, { income: 300, expense: 0, })
+    const issues = detectFrontmatterIssues('2026-04', txs, { income: money(300), expense: money(0) }, () => 'USD')
     expect(issues).toHaveLength(1)
     expect(issues[0].type).toBe('frontmatter')
     if (issues[0].type === 'frontmatter') {
-      expect(issues[0].storedIncome).toBe(300)
-      expect(issues[0].actualIncome).toBe(500)
+      expect(issues[0].storedIncome.get('USD')).toBe(300)
+      expect(issues[0].actualIncome.get('USD')).toBe(500)
     }
   })
 
   it('returns issue when stored expense differs from actual', () => {
     const txs: Transaction[] = [makeExpense('A', 200)]
-    const issues = detectFrontmatterIssues('2026-04', txs, { income: 0, expense: 999, })
+    const issues = detectFrontmatterIssues('2026-04', txs, { income: money(0), expense: money(999) }, () => 'USD')
     expect(issues).toHaveLength(1)
   })
 
   it('ignores transfer transactions in income/expense totals', () => {
     const txs: Transaction[] = [makeTransfer('A', 'B', 1000)]
-    const issues = detectFrontmatterIssues('2026-04', txs, { income: 0, expense: 0, })
+    const issues = detectFrontmatterIssues('2026-04', txs, { income: money(0), expense: money(0) }, () => 'USD')
     expect(issues).toHaveLength(0)
   })
 })
