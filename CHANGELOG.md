@@ -2,7 +2,7 @@
 
 All notable changes to PennyWallet will be documented in this file.
 
-## [Unreleased]
+## [0.0.18] - 2026-09-13
 
 ### Added
 - exchange rates can be downloaded automatically, off by default, from **Settings → Exchange Rates → Download rates automatically**. It fetches once a day and refreshes the current month's rate for each currency you hold; an **Update now** button fetches on demand
@@ -11,6 +11,9 @@ All notable changes to PennyWallet will be documented in this file.
 
 ### Changed
 - PennyWallet now makes one network request when — and only when — you turn rate downloads on: an HTTPS GET carrying your base currency code and nothing else. With the setting off it makes none at all
+
+### Internal
+- the demo vault check asserts the dated-rate mechanism against the seeded rates only, so a local vault that has downloaded rates no longer fails it
 
 ## [0.0.17] - 2026-09-13
 
