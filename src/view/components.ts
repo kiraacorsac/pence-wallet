@@ -1,10 +1,13 @@
 import { formatAmount } from '../utils'
+import { getCurrency } from '../money'
 
 export type MetricVariant = 'income' | 'expense' | 'positive' | 'negative' | 'neutral'
 
 export interface MetricOptions {
   hero?: boolean
   dp?: number
+  /** ISO code whose symbol prefixes the value; omitted renders a bare number. */
+  currency?: string
 }
 
 export function createMetric(
@@ -14,7 +17,7 @@ export function createMetric(
   variant: MetricVariant,
   options: MetricOptions = {},
 ): HTMLElement {
-  const { hero = false, dp = 0 } = options
+  const { hero = false, dp = 0, currency } = options
   const card = container.createDiv('pw-metric')
   if (hero) {
     card.addClass('pw-metric--hero')
@@ -30,7 +33,7 @@ export function createMetric(
   const valueClass = variant === 'neutral' ? 'pw-metric-value' : `pw-metric-value ${variant}`
 
   card.createEl('div', {
-    text: prefix + formatAmount(Math.abs(value), dp),
+    text: prefix + (currency ? getCurrency(currency).symbol : '') + formatAmount(Math.abs(value), dp),
     cls: valueClass,
   })
 

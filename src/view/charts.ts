@@ -84,6 +84,7 @@ export function drawIncExpChart(
   container: HTMLElement,
   data: MonthData[],
   dp: number = 0,
+  symbol = '',
 ): Chart {
   const colors = getThemeColors()
 
@@ -130,7 +131,7 @@ export function drawIncExpChart(
           callbacks: {
             label: (ctx) => {
               const label = ctx.dataset.label ?? ''
-              return `${label}: ${formatK(ctx.raw as number, dp)}`
+              return `${label}: ${symbol}${formatK(ctx.raw as number, dp)}`
             },
           },
         },
@@ -188,6 +189,7 @@ export function drawNetChart(
   container: HTMLElement,
   data: MonthData[],
   dp: number = 0,
+  symbol = '',
 ): Chart {
   const colors = getThemeColors()
 
@@ -226,7 +228,7 @@ export function drawNetChart(
             label: (ctx) => {
               const v = ctx.raw as number | null
               if (v === null) return ''
-              return `${t('dash.netAsset')}: ${v.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })}`
+              return `${t('dash.netAsset')}: ${symbol}${v.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })}`
             },
           },
         },
@@ -355,6 +357,7 @@ export function drawPie(
   dp: number = 0,
   onSegmentClick?: (categoryKey: string) => void,
   size = 200,
+  symbol = '',
 ): Chart {
   const filtered = filterPieData(data)
   const total = [...filtered.values()].reduce((a, b) => a + b, 0)
@@ -401,7 +404,7 @@ export function drawPie(
             label: (ctx) => {
               const seg = segments[ctx.dataIndex]
               const pct = Math.round((seg.value / total) * 100)
-              return `${formatAmount(seg.value, dp)} (${pct}%)`
+              return `${symbol}${formatAmount(seg.value, dp)} (${pct}%)`
             },
           },
         },
@@ -426,7 +429,7 @@ export function drawPie(
     const dot = item.createEl('span', { cls: 'pw-legend-dot' })
     dot.setCssProps({ 'background-color': segColors[i] })
     item.createEl('span', { text: seg.label, cls: 'pw-legend-name' })
-    item.createEl('span', { text: formatAmount(seg.value, dp), cls: 'pw-legend-amt' })
+    item.createEl('span', { text: symbol + formatAmount(seg.value, dp), cls: 'pw-legend-amt' })
     const pct = Math.round((seg.value / total) * 100)
     item.createEl('span', { text: `${pct}%`, cls: 'pw-legend-pct' })
   })

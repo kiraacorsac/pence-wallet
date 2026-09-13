@@ -5,10 +5,11 @@ import { MobileTransactionModal } from '../modal/MobileTransactionModal'
 import { openFilterSheet } from '../modal/BottomSheetPicker'
 import { t, translateCategory } from '../i18n'
 import { Transaction, TransactionType } from '../types'
-import { currentYearMonth, formatAmount } from '../utils'
+import { currentYearMonth } from '../utils'
 import { renderSharedHeader } from './SharedHeader'
 import { buildAmountDisplay, buildLine3Display, buildWalletText } from './detailRow'
-import { baseCurrency, currencyDecimals } from '../money'
+import { baseCurrency, currencyDecimals, formatMoney, getCurrency, sumToBase } from '../money'
+import { accountCurrency } from '../modal/transactionState'
 
 export const DETAIL_VIEW_TYPE = 'penny-wallet-detail'
 
@@ -28,7 +29,6 @@ export class DetailView extends ItemView {
 
   // Refs for lightweight list updates (search)
   private cachedTransactions: Transaction[] = []
-  private cachedDp: number = 0
   private listEl: HTMLElement | null = null
   private listWrapEl: HTMLElement | null = null
   private subtotalEl: HTMLElement | null = null
@@ -95,7 +95,6 @@ export class DetailView extends ItemView {
     contentEl.addClass('pw-detail')
 
     await this.ensureCacheForCurrentFilter()
-    this.cachedDp = currencyDecimals(baseCurrency(this.walletFile.getConfig()), this.walletFile.getConfig())
 
     renderSharedHeader(contentEl, {
       view: this,
@@ -712,27 +711,29 @@ export class DetailView extends ItemView {
       this.listEl.createEl('p', { text: t('detail.noTransactions'), cls: 'pw-no-data' })
     } else {
       for (const tx of filtered) {
-        this.renderTxRow(this.listEl, tx, this.cachedDp)
+        this.renderTxRow(this.listEl, tx)
       }
     }
 
-    let subIncome = 0, subExpense = 0
-    for (const tx of filtered) {
-      if (tx.type === 'income') subIncome += tx.amount
-      if (tx.type === 'expense') subExpense += tx.amount
-    }
+    // The filter can span accounts, so subtotals are stated in the base currency.
+    const config = this.walletFile.getConfig()
+    const base = baseCurrency(config)
+    const summary = this.walletFile.computeSummary(filtered)
+    const subIncome = sumToBase(summary.income, config, this.currentYearMonth)
+    const subExpense = sumToBase(summary.expense, config, this.currentYearMonth)
+
     this.subtotalEl.empty()
     this.subtotalEl.createEl('span', {
-      text: `${t('detail.subtotalExpense')}: ${formatAmount(subExpense, this.cachedDp)}`,
+      text: `${t('detail.subtotalExpense')}: ${formatMoney(subExpense, base, config)}`,
       cls: 'pw-subtotal-expense',
     })
     this.subtotalEl.createEl('span', {
-      text: `${t('detail.subtotalIncome')}: ${formatAmount(subIncome, this.cachedDp)}`,
+      text: `${t('detail.subtotalIncome')}: ${formatMoney(subIncome, base, config)}`,
       cls: 'pw-subtotal-income',
     })
   }
 
-  private renderTxRow(container: HTMLElement, tx: Transaction, dp: number = 0) {
+  private renderTxRow(container: HTMLElement, tx: Transaction) {
     const row = container.createDiv('pw-tx-row')
     row.dataset['testid'] = 'tx-row'
 
@@ -769,7 +770,14 @@ export class DetailView extends ItemView {
     }
 
     // col4: amount (V-center, large)
-    const amount = buildAmountDisplay(tx, dp)
+    const config = this.walletFile.getConfig()
+    const fromCode = accountCurrency(tx.wallet ?? tx.fromWallet ?? '', config)
+    const toCode = accountCurrency(tx.toWallet ?? '', config)
+    const amount = buildAmountDisplay(tx, currencyDecimals(fromCode, config), {
+      symbol: getCurrency(fromCode).symbol,
+      toSymbol: getCurrency(toCode).symbol,
+      toDp: currencyDecimals(toCode, config),
+    })
     row.createEl('span', { text: amount.text, cls: amount.className })
 
     row.addEventListener('click', () => {

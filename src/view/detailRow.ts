@@ -16,10 +16,20 @@ export function buildWalletText(tx: Transaction): string {
   return '—'
 }
 
+export interface AmountDisplayOptions {
+  /** Symbol for the account the amount leaves from or lands in. */
+  symbol?: string
+  /** Symbol and precision of the destination leg of a cross-currency transfer. */
+  toSymbol?: string
+  toDp?: number
+}
+
 export function buildAmountDisplay(
   tx: Transaction,
   dp: number = 0,
+  options: AmountDisplayOptions = {},
 ): { text: string; className: string } {
+  const { symbol = '', toSymbol = '', toDp = dp } = options
   const refund = isRefund(tx)
   const className = refund
     ? 'pw-tx-amount is-refund'
@@ -32,7 +42,13 @@ export function buildAmountDisplay(
     : tx.type === 'income'  ? '+'
     : ''
   const displayAmount = refund ? -tx.amount : tx.amount
-  return { text: prefix + formatAmount(displayAmount, dp), className }
+  const text = prefix + symbol + formatAmount(displayAmount, dp)
+
+  // A cross-currency transfer is only honest if both legs are shown.
+  if (tx.amountTo != null) {
+    return { text: `${text} → ${toSymbol}${formatAmount(tx.amountTo, toDp)}`, className }
+  }
+  return { text, className }
 }
 
 export function buildLine3Display(tx: Transaction): Line3Display {

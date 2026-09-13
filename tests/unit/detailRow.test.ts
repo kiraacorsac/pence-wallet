@@ -97,3 +97,43 @@ describe('buildLine3Display', () => {
     expect(buildLine3Display(tx as Transaction)).toEqual({ kind: 'empty' })
   })
 })
+
+// ── currency-aware amounts ────────────────────────────────────────────────────
+
+describe('buildAmountDisplay with currencies', () => {
+  it('prefixes the account symbol after the sign', () => {
+    const tx: Transaction = { date: '04/01', type: 'expense', wallet: 'HSBC', note: '', amount: 1200 }
+    expect(buildAmountDisplay(tx, 2, { symbol: '£' }).text).toBe('-£1,200.00')
+  })
+
+  it('shows both legs of a cross-currency transfer', () => {
+    const tx: Transaction = {
+      date: '09/08', type: 'transfer', fromWallet: 'HSBC', toWallet: 'Chase',
+      note: '', amount: 200, amountTo: 254,
+    }
+    const display = buildAmountDisplay(tx, 2, { symbol: '£', toSymbol: '$', toDp: 2 })
+    expect(display.text).toBe('£200.00 → $254.00')
+  })
+
+  it('honours a different precision on each leg', () => {
+    const tx: Transaction = {
+      date: '09/08', type: 'transfer', fromWallet: 'HSBC', toWallet: 'Tokyo',
+      note: '', amount: 200, amountTo: 38000,
+    }
+    const display = buildAmountDisplay(tx, 2, { symbol: '£', toSymbol: '¥', toDp: 0 })
+    expect(display.text).toBe('£200.00 → ¥38,000')
+  })
+
+  it('leaves a same-currency transfer as a single amount', () => {
+    const tx: Transaction = {
+      date: '09/08', type: 'transfer', fromWallet: 'HSBC', toWallet: 'Cash',
+      note: '', amount: 200,
+    }
+    expect(buildAmountDisplay(tx, 2, { symbol: '£' }).text).toBe('£200.00')
+  })
+
+  it('still marks a refund with a plus', () => {
+    const tx: Transaction = { date: '04/01', type: 'expense', wallet: 'HSBC', note: '', amount: -50 }
+    expect(buildAmountDisplay(tx, 2, { symbol: '£' }).text).toBe('+£50.00')
+  })
+})

@@ -1,12 +1,12 @@
 import { Events, ItemView, WorkspaceLeaf } from 'obsidian'
 import { WalletFile } from '../io/WalletFile'
 import { t, formatMonthLabel, formatYearMonth } from '../i18n'
-import { formatAmount, currentYearMonth } from '../utils'
+import { currentYearMonth } from '../utils'
 import { renderSharedHeader } from './SharedHeader'
 import { Chart } from 'chart.js'
 import { MonthData, drawNetChart, drawPie, getMonthRange } from './charts'
 import { renderCard } from './components'
-import { baseCurrency, currencyDecimals, sumToBase } from '../money'
+import { baseCurrency, currencyDecimals, formatMoney, formatMoneyMap, getCurrency, sumToBase, toBase } from '../money'
 
 export const ASSET_VIEW_TYPE = 'penny-wallet-asset'
 
@@ -64,6 +64,7 @@ export class AssetView extends ItemView {
     const base = baseCurrency(config)
     const netAsset = this.walletFile.computeNetAsset(walletBalances, currentYearMonth())
     const dp = currencyDecimals(base, config)
+    const baseSymbol = getCurrency(base).symbol
 
     renderSharedHeader(contentEl, {
       view: this,
@@ -82,7 +83,8 @@ export class AssetView extends ItemView {
     const walletCard = renderCard(leftCol, { title: t('dash.walletBalances') })
     const walletList = walletCard.createDiv('pw-wallet-list')
 
-    for (const { wallet, balance } of walletBalances) {
+    // Each account reads in its own currency; only the roll-up is converted.
+    for (const { wallet, balance, currency } of walletBalances) {
       if (wallet.status === 'archived') continue
       const row = walletList.createDiv('pw-asset-wallet-row')
       const left = row.createDiv('pw-wallet-left')
@@ -93,7 +95,7 @@ export class AssetView extends ItemView {
       left.createEl('span', { text: wallet.name, cls: 'pw-wallet-name' })
 
       row.createEl('span', {
-        text: formatAmount(Math.abs(balance), dp),
+        text: formatMoney(Math.abs(balance), currency, config),
         cls: 'pw-wallet-balance' + (balance < 0 ? ' is-negative' : ''),
       })
     }
@@ -101,19 +103,26 @@ export class AssetView extends ItemView {
     const netRow = walletCard.createDiv('pw-asset-wallet-row pw-net-asset-row')
     netRow.createEl('span', { text: t('dash.netAsset'), cls: 'pw-net-label' })
     netRow.createEl('span', {
-      text: formatAmount(Math.abs(netAsset), dp),
+      text: formatMoney(Math.abs(netAsset), base, config),
       cls: 'pw-net-value' + (netAsset < 0 ? ' is-negative' : ''),
     })
 
-    // Asset allocation pie (≥2 positive-balance accounts)
+    // What that single figure is actually made of, when it spans currencies.
+    const byCurrency = this.walletFile.netAssetByCurrency(walletBalances)
+    if (byCurrency.size > 1) {
+      walletCard.createDiv('pw-net-breakdown').textContent = formatMoneyMap(byCurrency, config)
+    }
+
+    // Asset allocation pie (≥2 positive-balance accounts), compared in the base
     const assetMap = new Map<string, number>()
-    for (const { wallet, balance } of walletBalances) {
+    for (const { wallet, balance, currency } of walletBalances) {
       if (wallet.status === 'archived') continue
-      if (balance > 0) assetMap.set(wallet.name, balance)
+      const converted = toBase(balance, currency, config, currentYearMonth())
+      if (converted > 0) assetMap.set(wallet.name, converted)
     }
     if (assetMap.size >= 2) {
       const assetCard = renderCard(leftCol, { title: t('dash.assetAllocation') })
-      this.charts.push(drawPie(assetCard, assetMap, dp))
+      this.charts.push(drawPie(assetCard, assetMap, dp, undefined, 200, baseSymbol))
     }
 
     // ── Right column ─────────────────────────────────────────────────────────
@@ -143,7 +152,7 @@ export class AssetView extends ItemView {
     }))
 
     const netChartWrap = netCard.createDiv('pw-chart-wrap')
-    this.charts.push(drawNetChart(netChartWrap, data, dp))
+    this.charts.push(drawNetChart(netChartWrap, data, dp, baseSymbol))
     contentEl.scrollTop = savedScroll
   }
 }
