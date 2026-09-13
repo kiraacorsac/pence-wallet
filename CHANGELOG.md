@@ -2,6 +2,21 @@
 
 All notable changes to PennyWallet will be documented in this file.
 
+## [0.0.16] - 2026-09-13
+
+### Breaking
+- categories are now a plain `string[]` with no built-ins and no `creditCard` account type; all migration code and `migrate-*.mjs` scripts are gone. Old vaults are not upgraded — flatten the config's category lists, switch `"creditCard"` accounts to `"bank"` with a negated balance, and pad month rows to ten columns
+- config moved from `.penny-wallet.json` to the plugin's `data.json` via `loadData`/`saveData` — copy the file to `.obsidian/plugins/penny-wallet/data.json` by hand, same JSON shape
+
+### Changed
+- pie charts show every category slice; the sub-1% "Other" bucket (which navigated with no category filter) is gone, and only zero-value entries are dropped
+- pie slice colors are hashed from the category name instead of segment position, so a category keeps its color across charts and months; slices and legend are sorted by share, largest first
+- pie palette widened to three shades per base color (24 slots), cutting same-color collisions in the default expense set to a single pair
+- balance engine simplified: expense subtracts, income adds, transfer moves — a credit card is just an account with a negative balance
+
+### Docs
+- removed the Traditional Chinese documentation (`docs/zh/`, the zh VitePress locale, and the README links); the in-app Chinese UI is unaffected
+
 ## [0.0.15] - 2026-05-24
 
 ### Fixed
