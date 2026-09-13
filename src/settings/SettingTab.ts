@@ -3,8 +3,10 @@ import Sortable from 'sortablejs'
 import { WalletFile } from '../io/WalletFile'
 import { ConfirmModal } from '../modal/ConfirmModal'
 import { WalletEditModal } from '../modal/WalletEditModal'
-import { Wallet, WalletBalance, WalletType } from '../types'
+import { DecimalPlaces, RatePoint, Wallet, WalletBalance, WalletType } from '../types'
 import { t, tn } from '../i18n'
+import { CURRENCIES, baseCurrency, formatMoney, getCurrency, walletCurrency } from '../money'
+import { currentYearMonth } from '../utils'
 
 export class PennyWalletSettingTab extends PluginSettingTab {
   private walletFile: WalletFile
@@ -31,6 +33,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
       this.renderActiveWallets(walletBalances, walletsWithTransactions)
       this.renderArchivedWallets()
       this.renderAddWallet()
+      this.renderExchangeRates()
       this.renderCategories()
 
       if (restoreScrollTop !== undefined) {
@@ -78,14 +81,33 @@ export class PennyWalletSettingTab extends PluginSettingTab {
       })
 
     new Setting(group)
+      .setName(t('settings.baseCurrency'))
+      .setDesc(t('settings.baseCurrencyDesc'))
+      .addDropdown(drop => {
+        for (const c of CURRENCIES) drop.addOption(c.code, `${c.code} - ${c.symbol}`)
+        const current = baseCurrency(config)
+        // an unlisted code the user typed into data.json stays selectable
+        if (!CURRENCIES.some(c => c.code === current)) drop.addOption(current, current)
+        drop.setValue(current)
+        drop.onChange((value) => {
+          this.walletFile.updateConfig({ baseCurrency: value })
+          void this.walletFile.saveConfig()
+          this.app.workspace.trigger('penny-wallet:refresh')
+          void this.display(this.getSettingsScrollTop())
+        })
+      })
+
+    new Setting(group)
       .setName(t('settings.decimalPlaces'))
       .setDesc(t('settings.decimalPlacesDesc'))
       .addDropdown(drop => {
+        drop.addOption('auto', t('settings.dpAuto'))
         drop.addOption('0', t('settings.dp0'))
         drop.addOption('2', t('settings.dp2'))
         drop.setValue(String(config.decimalPlaces ?? 0))
         drop.onChange((value) => {
-          this.walletFile.updateConfig({ decimalPlaces: Number(value) as 0 | 2 })
+          const next: DecimalPlaces = value === 'auto' ? 'auto' : (Number(value) as 0 | 2)
+          this.walletFile.updateConfig({ decimalPlaces: next })
           void this.walletFile.saveConfig()
           this.app.workspace.trigger('penny-wallet:refresh')
         })
@@ -221,7 +243,8 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     const config = this.walletFile.getConfig()
     const wb = walletBalances.find(b => b.wallet.name === wallet.name)
     const currentBalance = wb?.balance ?? wallet.initialBalance
-    const displayBalance = currentBalance.toLocaleString()
+    const code = walletCurrency(wallet, config)
+    const displayBalance = formatMoney(currentBalance, code, config)
 
     const row = createDiv('pw-wallet-row')
 
@@ -234,6 +257,8 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     const info = row.createDiv('pw-wallet-row-info')
     info.createSpan({ text: wallet.name, cls: 'pw-wallet-row-name' })
     info.createSpan({ text: t(`label.walletType.${wallet.type}`), cls: `pw-wallet-badge pw-badge-${wallet.type}` })
+    // ISO codes are open-ended, so this is a plain string rather than a t() key
+    info.createSpan({ text: code, cls: 'pw-wallet-badge pw-badge-currency' })
 
     row.createSpan({ text: displayBalance, cls: `pw-wallet-row-balance${currentBalance < 0 ? ' is-debt' : ''}` })
 
@@ -256,6 +281,9 @@ export class PennyWalletSettingTab extends PluginSettingTab {
         }
         this.app.workspace.trigger('penny-wallet:refresh')
         void this.display(scrollTop)
+      }, {
+        fallbackCurrency: baseCurrency(config),
+        hasTransactions: walletsWithTransactions.has(wallet.name),
       }).open()
     })
 
@@ -298,6 +326,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
   private buildAddWalletForm(cardEl: HTMLElement): {
     getName: () => string
     getType: () => WalletType
+    getCurrency: () => string
     getBalance: () => number
     bindSubmitKey: (handler: () => void) => void
   } {
@@ -321,6 +350,15 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     }
     typeSelect.value = 'cash'
 
+    let currency = baseCurrency(this.walletFile.getConfig())
+    const currencyField = formEl.createDiv('pw-add-wallet-field')
+    currencyField.createEl('label', { text: t('settings.walletCurrency'), cls: 'pw-setting-input-subtitle' })
+    const currencySelect = currencyField.createEl('select', { cls: 'pw-add-wallet-input' })
+    for (const c of CURRENCIES) currencySelect.createEl('option', { value: c.code, text: `${c.code} - ${c.symbol}` })
+    if (!CURRENCIES.some(c => c.code === currency)) currencySelect.createEl('option', { value: currency, text: currency })
+    currencySelect.value = currency
+    currencySelect.addEventListener('change', () => { currency = currencySelect.value })
+
     let balance = 0
     const balanceField = formEl.createDiv('pw-add-wallet-field')
     balanceField.createEl('label', { text: t('settings.initialBalance'), cls: 'pw-setting-input-subtitle' })
@@ -334,9 +372,10 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     return {
       getName: () => name,
       getType: () => type,
+      getCurrency: () => currency,
       getBalance: () => balance,
       bindSubmitKey: (handler) => {
-        for (const el of [nameInput as HTMLElement, typeSelect as HTMLElement, balanceInput as HTMLElement]) {
+        for (const el of [nameInput as HTMLElement, typeSelect as HTMLElement, currencySelect as HTMLElement, balanceInput as HTMLElement]) {
           el.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); handler() }
           })
@@ -363,7 +402,10 @@ export class PennyWalletSettingTab extends PluginSettingTab {
       const balance = form.getBalance()
       if (!name) { new Notice(t('err.walletNameEmpty')); return }
       if (config.wallets.some(w => w.name === name)) { new Notice(t('err.walletNameDuplicate')); return }
-      const newWallet: Wallet = { name, type, initialBalance: balance, status: 'active', includeInNetAsset: true }
+      const newWallet: Wallet = {
+        name, type, initialBalance: balance, status: 'active', includeInNetAsset: true,
+        currency: form.getCurrency(),
+      }
       this.walletFile.updateConfig({ wallets: [...config.wallets, newWallet] })
       await this.walletFile.saveConfig()
       new Notice(tn('notice.walletAdded', { name }))
@@ -372,6 +414,89 @@ export class PennyWalletSettingTab extends PluginSettingTab {
 
     addBtn.addEventListener('click', () => { void submitAddWallet() })
     form.bindSubmitKey(() => { void submitAddWallet() })
+  }
+
+  /**
+   * One group per currency actually in use, each holding the dated rate points
+   * that price it against the base currency.
+   */
+  private renderExchangeRates() {
+    const config = this.walletFile.getConfig()
+    const { containerEl } = this
+    const base = baseCurrency(config)
+
+    const inUse = [...new Set(config.wallets.map(w => walletCurrency(w, config)))]
+      .filter(code => code !== base)
+      .sort((a, b) => a.localeCompare(b))
+
+    if (inUse.length === 0) return
+
+    new Setting(containerEl).setName(t('settings.exchangeRates')).setHeading()
+    const cardEl = containerEl.createDiv('pw-card')
+    cardEl.createDiv('pw-balance-hint').textContent = t('settings.exchangeRatesDesc')
+
+    const saveRates = async (rates: RatePoint[]) => {
+      const scrollTop = this.getSettingsScrollTop()
+      this.walletFile.updateConfig({ rates })
+      await this.walletFile.saveConfig()
+      this.app.workspace.trigger('penny-wallet:refresh')
+      void this.display(scrollTop)
+    }
+
+    for (const code of inUse) {
+      const points = (config.rates ?? [])
+        .filter(r => r.code === code)
+        .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+
+      const group = cardEl.createDiv('pw-rate-group')
+      const header = group.createDiv('pw-rate-group-header')
+      header.createSpan({ text: `${getCurrency(code).symbol} ${code}`, cls: 'pw-rate-group-title' })
+      header.createSpan({
+        text: tn('settings.rateHint', { code, base }),
+        cls: 'pw-rate-group-hint',
+      })
+
+      if (points.length === 0) {
+        group.createDiv('pw-rate-empty').textContent = t('settings.noRates')
+      }
+
+      for (const point of points) {
+        const row = group.createDiv('pw-rate-row')
+
+        const monthInput = row.createEl('input', { type: 'month', cls: 'pw-rate-input' })
+        monthInput.value = point.effectiveFrom
+        monthInput.addEventListener('change', () => {
+          if (!/^\d{4}-\d{2}$/.test(monthInput.value)) return
+          void saveRates((config.rates ?? []).map(r =>
+            r === point ? { ...r, effectiveFrom: monthInput.value } : r))
+        })
+
+        const rateInput = row.createEl('input', { type: 'number', cls: 'pw-rate-input' })
+        rateInput.setAttribute('step', 'any')
+        rateInput.setAttribute('min', '0')
+        rateInput.value = String(point.rate)
+        rateInput.addEventListener('change', () => {
+          const value = parseFloat(rateInput.value)
+          if (!Number.isFinite(value) || value <= 0) return
+          void saveRates((config.rates ?? []).map(r =>
+            r === point ? { ...r, rate: value } : r))
+        })
+
+        const removeBtn = row.createEl('button', { text: t('ui.delete') })
+        removeBtn.addEventListener('click', () => {
+          void saveRates((config.rates ?? []).filter(r => r !== point))
+        })
+      }
+
+      const addBtn = group.createEl('button', { text: t('settings.addRate') })
+      addBtn.addEventListener('click', () => {
+        const last = points[points.length - 1]
+        void saveRates([
+          ...(config.rates ?? []),
+          { code, effectiveFrom: currentYearMonth(), rate: last?.rate ?? 1 },
+        ])
+      })
+    }
   }
 
   private renderCategories() {
