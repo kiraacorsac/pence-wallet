@@ -27,6 +27,8 @@ vi.mock('obsidian', () => ({
   },
   Notice: class Notice { constructor(_: string) {} },
   Plugin: class Plugin {},
+  // Never actually called: every test injects its own RateFetcher.
+  requestUrl: vi.fn(),
 }))
 
 // ── window.moment stub (used by getLocaleCashName) ────────────────────────────

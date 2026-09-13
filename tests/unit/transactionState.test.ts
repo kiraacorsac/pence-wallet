@@ -131,6 +131,7 @@ describe('validateTransactionForm', () => {
     tags: [],
     folderName: 'PennyWallet',
     autoValidateOnLoad: true,
+    autoFetchRates: false,
     baseCurrency: 'USD',
     rates: [],
     options: {} as never,

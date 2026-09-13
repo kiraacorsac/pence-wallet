@@ -55,8 +55,48 @@ With a TWD base, the above reads *one US dollar is worth 31.5 NT dollars from
 October 2025, and 32.4 from April 2026*. A month earlier than your first rate
 uses that first rate.
 
-Rates are entered by hand — PennyWallet never contacts a network service. They
-affect reporting only: no stored amount is ever rewritten by a rate change.
+Rates affect reporting only: no stored amount is ever rewritten by a rate change.
+
+---
+
+## Downloading rates
+
+Rates are entered by hand unless you ask for otherwise. **Settings → Exchange
+Rates → Download rates automatically** turns on a once-a-day download from
+[open.er-api.com](https://open.er-api.com), and a **Update now** button next to
+it fetches on demand whether or not the daily download is on.
+
+The section only appears once an account uses a currency other than your base,
+so a single-currency vault is never offered it.
+
+What a download does:
+
+| | |
+|-|-|
+| Touches | the rate for the **current month** only |
+| Leaves alone | every earlier month, and anything you typed yourself |
+| Sends | your base currency code, and nothing else |
+
+Downloaded rows are marked **Auto** in the rate list. Each day's download
+overwrites that month's auto rate, so it tracks the market; when the month rolls
+over the value freezes where it stood and a fresh row starts for the new month.
+Past figures therefore never move under you.
+
+A rate you entered by hand always wins, even for the current month — the
+downloader skips that currency entirely rather than overwriting you. Editing an
+auto row by hand claims it the same way: the **Auto** mark disappears and the
+downloader stops touching it.
+
+Because the download marker lives in your settings, and settings sync with the
+rest of `.obsidian/`, a device that syncs after another has already fetched
+today stays quiet rather than asking again.
+
+### What leaves your vault
+
+One HTTPS GET to `https://open.er-api.com/v6/latest/<your base currency>`, at
+most once a day. No accounts, no amounts, no note text, no identifier of any
+kind. If the request fails it is retried a few times and then left until later —
+nothing is written unless a download actually succeeds.
 
 ---
 

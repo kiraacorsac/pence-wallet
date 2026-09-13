@@ -2828,6 +2828,32 @@ select.pw-add-wallet-input {
   min-width: 0;
 }
 
+/* Marks a point the downloader owns, and will keep refreshing. */
+.pw-rate-auto {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.pw-rate-sync-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+}
+
+.pw-rate-sync-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* ── Cross-currency transfer amounts ───────────────────────────────────────── */
 
 /* Two heroes share the row, so each gets a smaller type scale than a lone one. */

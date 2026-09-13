@@ -62,6 +62,7 @@ export interface RatePoint {
   code: string           // ISO 4217 code being priced
   effectiveFrom: string  // 'YYYY-MM'; applies to that month and every later one
   rate: number
+  source?: 'auto'        // written by the downloader; absent means entered by hand
 }
 
 /** 'auto' derives decimals from each currency; 0 | 2 force one setting globally. */
@@ -77,6 +78,8 @@ export interface PennyWalletConfig {
   options: PennyWalletOptions
   tags: string[]
   autoValidateOnLoad: boolean
+  autoFetchRates: boolean
+  lastRateFetch?: string  // ISO 8601 of the last successful rate download
 }
 
 export interface TransactionModalParams {
@@ -135,6 +138,8 @@ export const DEFAULT_CONFIG: PennyWalletConfig = {
   },
   tags: [],
   autoValidateOnLoad: true,
+  // Off until asked for: this is the only feature that leaves the vault.
+  autoFetchRates: false,
 }
 
 export interface FrontmatterIssue {

@@ -54,9 +54,14 @@ export function createMockApp(initialFiles: Record<string, string> = {}) {
     },
   }
 
+  // Records 'penny-wallet:refresh' and friends so a test can assert on them.
+  const triggered: string[] = []
+  const workspace = { trigger: (name: string) => { triggered.push(name) } }
+
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    app: { vault } as any,
+    app: { vault, workspace } as any,
     store, // expose for assertions
+    triggered,
   }
 }

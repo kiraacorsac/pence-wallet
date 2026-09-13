@@ -7,13 +7,16 @@ import { DecimalPlaces, RatePoint, Wallet, WalletBalance, WalletType } from '../
 import { t, tn } from '../i18n'
 import { CURRENCIES, baseCurrency, formatMoney, getCurrency, walletCurrency } from '../money'
 import { currentYearMonth } from '../utils'
+import { currenciesToPrice, type RateSync } from '../io/rateSync'
 
 export class PennyWalletSettingTab extends PluginSettingTab {
   private walletFile: WalletFile
+  private rateSync: RateSync
 
-  constructor(app: App, plugin: Plugin, walletFile: WalletFile) {
+  constructor(app: App, plugin: Plugin, walletFile: WalletFile, rateSync: RateSync) {
     super(app, plugin)
     this.walletFile = walletFile
+    this.rateSync = rateSync
   }
 
   display(restoreScrollTop?: number): void {
@@ -425,15 +428,15 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     const { containerEl } = this
     const base = baseCurrency(config)
 
-    const inUse = [...new Set(config.wallets.map(w => walletCurrency(w, config)))]
-      .filter(code => code !== base)
-      .sort((a, b) => a.localeCompare(b))
+    const inUse = currenciesToPrice(config)
 
     if (inUse.length === 0) return
 
     new Setting(containerEl).setName(t('settings.exchangeRates')).setHeading()
     const cardEl = containerEl.createDiv('pw-card')
     cardEl.createDiv('pw-balance-hint').textContent = t('settings.exchangeRatesDesc')
+
+    this.renderRateSync(cardEl)
 
     const saveRates = async (rates: RatePoint[]) => {
       const scrollTop = this.getSettingsScrollTop()
@@ -463,12 +466,17 @@ export class PennyWalletSettingTab extends PluginSettingTab {
       for (const point of points) {
         const row = group.createDiv('pw-rate-row')
 
+        // Editing either field by hand hands the point back to the user: `source`
+        // is dropped, and the downloader leaves it alone from then on.
+        const takeOwnership = (patch: Partial<RatePoint>) =>
+          saveRates((config.rates ?? []).map(r =>
+            r === point ? { ...r, ...patch, source: undefined } : r))
+
         const monthInput = row.createEl('input', { type: 'month', cls: 'pw-rate-input' })
         monthInput.value = point.effectiveFrom
         monthInput.addEventListener('change', () => {
           if (!/^\d{4}-\d{2}$/.test(monthInput.value)) return
-          void saveRates((config.rates ?? []).map(r =>
-            r === point ? { ...r, effectiveFrom: monthInput.value } : r))
+          void takeOwnership({ effectiveFrom: monthInput.value })
         })
 
         const rateInput = row.createEl('input', { type: 'number', cls: 'pw-rate-input' })
@@ -478,9 +486,12 @@ export class PennyWalletSettingTab extends PluginSettingTab {
         rateInput.addEventListener('change', () => {
           const value = parseFloat(rateInput.value)
           if (!Number.isFinite(value) || value <= 0) return
-          void saveRates((config.rates ?? []).map(r =>
-            r === point ? { ...r, rate: value } : r))
+          void takeOwnership({ rate: value })
         })
+
+        if (point.source === 'auto') {
+          row.createSpan({ text: t('settings.rateAuto'), cls: 'pw-rate-auto' })
+        }
 
         const removeBtn = row.createEl('button', { text: t('ui.delete') })
         removeBtn.addEventListener('click', () => {
@@ -497,6 +508,65 @@ export class PennyWalletSettingTab extends PluginSettingTab {
         ])
       })
     }
+  }
+
+  /**
+   * The download controls. They live inside the rate card, which only renders
+   * when a non-base currency is in use - so a single-currency vault is never
+   * shown a network setting at all.
+   */
+  private renderRateSync(cardEl: HTMLElement) {
+    const config = this.walletFile.getConfig()
+
+    new Setting(cardEl)
+      .setName(t('settings.autoFetchRates'))
+      .setDesc(t('settings.autoFetchRatesDesc'))
+      .addToggle(toggle => toggle
+        .setValue(config.autoFetchRates)
+        .onChange(async (value) => {
+          this.walletFile.updateConfig({ autoFetchRates: value })
+          await this.walletFile.saveConfig()
+          // Switching it on is unambiguous consent, so fetch straight away
+          // rather than leaving the user to wait out the next hourly tick.
+          if (value) await this.fetchRatesNow()
+        }),
+      )
+
+    const row = cardEl.createDiv('pw-rate-sync-row')
+    row.createSpan({ cls: 'pw-rate-sync-status', text: this.lastFetchLabel(config.lastRateFetch) })
+
+    const btn = row.createEl('button', { text: t('settings.fetchRatesNow') })
+    btn.dataset['action'] = 'fetch-rates'
+    btn.addEventListener('click', () => {
+      btn.disabled = true
+      btn.textContent = t('settings.fetchingRates')
+      void this.fetchRatesNow()
+    })
+  }
+
+  private lastFetchLabel(lastRateFetch: string | undefined): string {
+    const at = lastRateFetch ? new Date(lastRateFetch) : null
+    if (!at || isNaN(at.getTime())) return t('settings.ratesNeverFetched')
+    return tn('settings.ratesLastUpdated', { when: at.toLocaleString() })
+  }
+
+  private async fetchRatesNow(): Promise<void> {
+    const scrollTop = this.getSettingsScrollTop()
+    const result = await this.rateSync.syncNow()
+
+    if (!result.ok) {
+      const base = baseCurrency(this.walletFile.getConfig())
+      new Notice(result.reason === 'unsupportedBase'
+        ? tn('notice.ratesBaseUnsupported', { base })
+        : t('notice.ratesFetchFailed'))
+    } else {
+      new Notice(result.updated > 0
+        ? tn('notice.ratesUpdated', { count: String(result.updated) })
+        : t('notice.ratesUnchanged'))
+    }
+
+    this.app.workspace.trigger('penny-wallet:refresh')
+    void this.display(scrollTop)
   }
 
   private renderCategories() {

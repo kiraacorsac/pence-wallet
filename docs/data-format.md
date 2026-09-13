@@ -115,7 +115,8 @@ Stored where Obsidian keeps every plugin's settings —
   "baseCurrency": "TWD",
   "rates": [
     { "code": "USD", "effectiveFrom": "2025-10", "rate": 31.5 },
-    { "code": "USD", "effectiveFrom": "2026-04", "rate": 32.4 }
+    { "code": "USD", "effectiveFrom": "2026-04", "rate": 32.4 },
+    { "code": "USD", "effectiveFrom": "2026-09", "rate": 32.6, "source": "auto" }
   ],
   "options": {
     "categories": {
@@ -125,9 +126,18 @@ Stored where Obsidian keeps every plugin's settings —
     }
   },
   "tags": [],
-  "autoValidateOnLoad": true
+  "autoValidateOnLoad": true,
+  "autoFetchRates": false,
+  "lastRateFetch": "2026-09-13T08:14:02.431Z"
 }
 ```
+
+A rate point carries `"source": "auto"` when it was written by the rate
+downloader; the field is absent on anything entered by hand, which is what keeps
+the downloader from overwriting your own figures. `autoFetchRates` is the opt-in
+toggle, and `lastRateFetch` records the last *successful* download — it syncs
+with the rest of the config, which is how a second device knows not to fetch
+again the same day. Both keys are absent in vaults written before 0.0.18.
 
 ---
 

@@ -205,6 +205,10 @@ Before opening a PR, verify the following:
 - [ ] Default account change applies to new transaction modal
 - [ ] Decimal places switch: new transactions accept decimals / integers correctly
 - [ ] Custom categories: add, duplicate check, remove
+- [ ] Exchange rates: "Update now" fills the current month and marks the rows Auto
+- [ ] Exchange rates: a hand-entered rate for the current month survives an update
+- [ ] Exchange rates: editing an auto rate clears its Auto mark
+- [ ] Exchange rates: with the toggle off, reloading the plugin makes no request
 
 ---
 

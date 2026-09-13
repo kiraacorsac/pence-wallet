@@ -55,8 +55,25 @@ A rate is *how many units of the base currency one unit of that currency is
 worth* — with a TWD base, `USD 31.5` means one dollar is 31.5 dollars' worth of
 NT dollars.
 
-Rates are entered by hand; PennyWallet never fetches them. A currency in use with
-no rate at all is counted at 1:1 and called out in this section.
+A currency in use with no rate at all is counted at 1:1 and called out in this
+section.
+
+### Download Rates Automatically
+
+Off by default — with it off, PennyWallet makes no network request at all.
+
+Turned on, it fetches rates once a day from
+[open.er-api.com](https://open.er-api.com) and updates the **current month's**
+rate for each currency you hold. Only your base currency code is sent; no
+account, amount or note ever leaves the vault. Turning the toggle on fetches
+immediately.
+
+The **Update now** button beside it fetches on demand, whether or not the daily
+download is enabled, and reports how many rates changed.
+
+Downloaded rates are marked **Auto**. A rate you typed yourself is never
+overwritten, and editing an auto rate by hand converts it to a manual one. See
+[Multiple Currencies](/currencies#downloading-rates) for the full behaviour.
 
 > Rates affect reporting only. They never change a stored amount, and a
 > cross-currency transfer always keeps the two amounts you actually entered.

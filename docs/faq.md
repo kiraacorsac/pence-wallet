@@ -73,7 +73,7 @@ Yes. Each account has a **currency** in Settings, and every amount you record ag
 
 Set a **base currency** and, under **Settings → Exchange Rates**, a rate for each other currency you use. Individual accounts and transaction rows stay in their own currency; anything that combines accounts — net assets, monthly totals, the category pies — is converted to the base currency for you.
 
-Rates carry an **effective from** month, so past months keep the rate they were priced at instead of being restated whenever you add a new one. You enter rates yourself; PennyWallet never fetches them from anywhere.
+Rates carry an **effective from** month, so past months keep the rate they were priced at instead of being restated whenever you add a new one. You enter rates yourself unless you turn on [automatic downloads](/currencies#downloading-rates), which refresh the current month once a day and never overwrite a rate you typed.
 
 ---
 
@@ -87,7 +87,9 @@ Both numbers are stored, so neither balance depends on an exchange rate you migh
 
 ### Where is my data stored? Is it synced?
 
-All data is in your Obsidian vault as plain `.md` and `.json` files — wherever your vault lives (local folder, iCloud, Obsidian Sync, Dropbox, etc.). PennyWallet does not send any data anywhere.
+All data is in your Obsidian vault as plain `.md` and `.json` files — wherever your vault lives (local folder, iCloud, Obsidian Sync, Dropbox, etc.). PennyWallet never sends your accounts, amounts or notes anywhere.
+
+The one feature that touches the network is off until you ask for it: **Settings → Exchange Rates → Download rates automatically** fetches exchange rates once a day, sending nothing but your base currency code. See [Downloading rates](/currencies#downloading-rates).
 
 ---
 
