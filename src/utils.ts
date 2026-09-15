@@ -17,15 +17,15 @@ export function formatAmount(n: number, dp: number = 0): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })
 }
 
-// CJK Unified Ideographs (Traditional/Simplified Chinese)
-const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/
+// Upper bound on a tag name, counted in code points so CJK and ASCII share
+// one budget. Tags sit in a single wallet-table cell and render as chips, so
+// they are capped rather than unbounded.
+export const TAG_MAX_LEN = 64
 
 export function validateTag(tag: string): boolean {
   if (!tag.trim()) return false
   if (tag.includes(',') || tag.includes('|')) return false
-  const hasCjk = CJK_RE.test(tag)
-  const len = [...tag].length
-  return hasCjk ? len <= 5 : len <= 10
+  return [...tag].length <= TAG_MAX_LEN
 }
 
 export function formatHeroAmount(raw: string): string {

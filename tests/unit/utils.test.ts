@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { stepMonth, isAfterCurrentMonth, formatAmount, validateTag, formatHeroAmount, formatMobileHeroAmount, dateToYearMonth, dateToMonthDay } from '../../src/utils'
+import { stepMonth, isAfterCurrentMonth, formatAmount, validateTag, TAG_MAX_LEN, formatHeroAmount, formatMobileHeroAmount, dateToYearMonth, dateToMonthDay } from '../../src/utils'
 
 // ── stepMonth ─────────────────────────────────────────────────────────────────
 
@@ -116,17 +116,17 @@ describe('validateTag', () => {
   it('accepts short ASCII tag', () => {
     expect(validateTag('food')).toBe(true)
   })
-  it('accepts 10-char ASCII tag', () => {
-    expect(validateTag('abcdefghij')).toBe(true)
+  it('accepts a long ASCII tag up to the cap', () => {
+    expect(validateTag('monthly-subscriptions')).toBe(true)
+    expect(validateTag('a'.repeat(TAG_MAX_LEN))).toBe(true)
   })
-  it('rejects 11-char ASCII tag', () => {
-    expect(validateTag('abcdefghijk')).toBe(false)
+  it('rejects an ASCII tag past the cap', () => {
+    expect(validateTag('a'.repeat(TAG_MAX_LEN + 1))).toBe(false)
   })
-  it('accepts 5-char CJK tag', () => {
-    expect(validateTag('日常通勤飲')).toBe(true)      // 5 chars → true
-  })
-  it('rejects 6-char CJK tag', () => {
-    expect(validateTag('日常通勤飲食')).toBe(false)
+  it('gives CJK the same budget as ASCII', () => {
+    expect(validateTag('日常通勤飲食')).toBe(true)
+    expect(validateTag('一'.repeat(TAG_MAX_LEN))).toBe(true)
+    expect(validateTag('一'.repeat(TAG_MAX_LEN + 1))).toBe(false)
   })
   it('rejects empty string', () => {
     expect(validateTag('')).toBe(false)

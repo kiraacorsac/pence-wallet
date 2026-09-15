@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { filterTagsByQuery, toggleStagedTag, getAddRowState } from '../../src/modal/TagPicker'
+import { TAG_MAX_LEN } from '../../src/utils'
 
 describe('filterTagsByQuery', () => {
   const tags = ['Coffee_Shop', 'coffee', 'food', 'transport']
@@ -69,16 +70,23 @@ describe('getAddRowState', () => {
       .toEqual({ kind: 'invalid', name: 'a|b' })
   })
 
-  it('returns too-long when length exceeds 5 CJK / 10 non-CJK', () => {
-    expect(getAddRowState('一二三四五六', [], 0))
-      .toEqual({ kind: 'too-long', name: '一二三四五六' })
-    expect(getAddRowState('abcdefghijk', [], 0))
-      .toEqual({ kind: 'too-long', name: 'abcdefghijk' })
+  it('returns too-long past TAG_MAX_LEN, same cap for CJK and ASCII', () => {
+    const cjk = '一'.repeat(TAG_MAX_LEN + 1)
+    const ascii = 'a'.repeat(TAG_MAX_LEN + 1)
+    expect(getAddRowState(cjk, [], 0)).toEqual({ kind: 'too-long', name: cjk })
+    expect(getAddRowState(ascii, [], 0)).toEqual({ kind: 'too-long', name: ascii })
     // boundary: exactly at cap is still addable
-    expect(getAddRowState('一二三四五', [], 0))
-      .toEqual({ kind: 'addable', name: '一二三四五' })
-    expect(getAddRowState('abcdefghij', [], 0))
-      .toEqual({ kind: 'addable', name: 'abcdefghij' })
+    expect(getAddRowState('一'.repeat(TAG_MAX_LEN), [], 0))
+      .toEqual({ kind: 'addable', name: '一'.repeat(TAG_MAX_LEN) })
+    expect(getAddRowState('a'.repeat(TAG_MAX_LEN), [], 0))
+      .toEqual({ kind: 'addable', name: 'a'.repeat(TAG_MAX_LEN) })
+  })
+
+  it('accepts names the old 5 CJK / 10 ASCII cap rejected', () => {
+    expect(getAddRowState('subscriptions', [], 0))
+      .toEqual({ kind: 'addable', name: 'subscriptions' })
+    expect(getAddRowState('日常通勤飲食', [], 0))
+      .toEqual({ kind: 'addable', name: '日常通勤飲食' })
   })
 
   it('returns limit when staged count is already at the cap', () => {

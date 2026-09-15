@@ -772,6 +772,8 @@ body.pw-bottom-sheet-lock {
   background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
   color: color-mix(in srgb, var(--interactive-accent) 68%, var(--text-muted) 32%);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pw-mobile-tag-chip {

@@ -1,10 +1,8 @@
 import { t } from '../i18n'
-import { validateTag } from '../utils'
+import { validateTag, TAG_MAX_LEN } from '../utils'
 import type { WalletFile } from '../io/WalletFile'
 
 export const TAG_LIMIT = 3
-
-const CJK_RE = /[一-鿿㐀-䶿豈-﫿]/
 
 export function filterTagsByQuery(tags: readonly string[], query: string): string[] {
   const needle = query.trim().toLowerCase()
@@ -22,7 +20,7 @@ export function toggleStagedTag(staged: ReadonlySet<string>, tag: string): Set<s
 export type AddRowState =
   | { kind: 'empty' }                       // search empty — row prompts to focus search
   | { kind: 'invalid'; name: string }       // search has chars but fails validateTag (e.g. ,|)
-  | { kind: 'too-long'; name: string }      // exceeds 5 CJK / 10 non-CJK length cap
+  | { kind: 'too-long'; name: string }      // exceeds the TAG_MAX_LEN length cap
   | { kind: 'duplicate'; name: string }     // exact match against existing tag
   | { kind: 'limit'; name: string }         // would exceed 3-tag staged cap
   | { kind: 'addable'; name: string }       // ready to add
@@ -34,9 +32,7 @@ export function getAddRowState(
 ): AddRowState {
   const normalized = query.trim().replace(/^#/, '').trim()
   if (!normalized) return { kind: 'empty' }
-  const len = [...normalized].length
-  const maxLen = CJK_RE.test(normalized) ? 5 : 10
-  if (len > maxLen) return { kind: 'too-long', name: normalized }
+  if ([...normalized].length > TAG_MAX_LEN) return { kind: 'too-long', name: normalized }
   if (!validateTag(normalized)) return { kind: 'invalid', name: normalized }
   if (existingTags.includes(normalized)) return { kind: 'duplicate', name: normalized }
   if (stagedCount >= TAG_LIMIT) return { kind: 'limit', name: normalized }
@@ -192,7 +188,7 @@ export function openTagPicker(params: TagPickerParams): () => void {
         break
       case 'too-long':
         inlineAdd.show()
-        inlineAdd.setText(t('tagPicker.tooLong'))
+        inlineAdd.setText(t('tagPicker.tooLong').replace('{max}', String(TAG_MAX_LEN)))
         inlineAdd.setAttribute('disabled', 'true')
         inlineAdd.addClass('is-disabled')
         break

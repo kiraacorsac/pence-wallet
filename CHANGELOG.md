@@ -2,6 +2,11 @@
 
 All notable changes to PennyWallet will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- tag names can be up to 64 characters, with the same budget for Chinese and Latin script. The old cap was 5 Chinese / 10 Latin characters, which was too short for names like `monthly-subscriptions`. A long tag truncates with an ellipsis in transaction rows rather than spilling out of them
+
 ## [0.0.18] - 2026-09-13
 
 ### Added
