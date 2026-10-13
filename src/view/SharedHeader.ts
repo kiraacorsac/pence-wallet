@@ -45,11 +45,10 @@ export function renderSharedHeader(container: HTMLElement, opts: SharedHeaderOpt
   }
 
   const tabsCell = root.createDiv('pw-shared-header-tabs')
-  const tabs: { id: ActiveView; label: string; targetType: string; state?: Record<string, unknown> }[] = [
+  const tabs: { id: ActiveView; label: string; targetType: string }[] = [
     { id: 'dashboard', label: t('ui.overview'), targetType: DASHBOARD_VIEW_TYPE },
     { id: 'asset',     label: t('ui.asset'),    targetType: ASSET_VIEW_TYPE },
-    { id: 'detail',    label: t('ui.detail'),   targetType: DETAIL_VIEW_TYPE,
-      state: opts.yearMonth ? { yearMonth: opts.yearMonth } : undefined },
+    { id: 'detail',    label: t('ui.detail'),   targetType: DETAIL_VIEW_TYPE },
   ]
   for (const tab of tabs) {
     const isActive = opts.activeView === tab.id
@@ -59,7 +58,7 @@ export function renderSharedHeader(container: HTMLElement, opts: SharedHeaderOpt
     })
     if (!isActive) {
       btn.addEventListener('click', () => {
-        void openOrRevealView(opts.view, tab.targetType, tab.state)
+        void openOrRevealView(opts.view, tab.targetType)
       })
     }
   }
@@ -79,9 +78,9 @@ export function renderSharedHeader(container: HTMLElement, opts: SharedHeaderOpt
   })
 }
 
-async function openOrRevealView(view: ItemView, type: string, state?: Record<string, unknown>) {
+async function openOrRevealView(view: ItemView, type: string) {
   const existing = view.app.workspace.getLeavesOfType(type)
   const leaf = existing[0] ?? view.app.workspace.getLeaf('tab')
-  await leaf.setViewState({ type, active: true, state })
+  await leaf.setViewState({ type, active: true })
   void view.app.workspace.revealLeaf(leaf)
 }

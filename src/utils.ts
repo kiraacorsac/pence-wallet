@@ -55,3 +55,17 @@ export function dateToYearMonth(date: string): string {
 export function dateToMonthDay(date: string): string {
   return date.substring(5).replace('-', '/')
 }
+
+/** Local calendar date as YYYY-MM-DD, `offsetDays` from today. */
+export function localIsoDate(offsetDays: number = 0): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offsetDays)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** First and last day (YYYY-MM-DD) of a YYYY-MM month. */
+export function monthDateBounds(ym: string): { from: string; to: string } {
+  const [y, m] = ym.split('-').map(Number)
+  const last = new Date(y, m, 0).getDate()
+  return { from: `${ym}-01`, to: `${ym}-${String(last).padStart(2, '0')}` }
+}

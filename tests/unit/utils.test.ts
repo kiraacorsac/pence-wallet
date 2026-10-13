@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { stepMonth, isAfterCurrentMonth, formatAmount, validateTag, TAG_MAX_LEN, formatHeroAmount, formatMobileHeroAmount, dateToYearMonth, dateToMonthDay } from '../../src/utils'
+import { stepMonth, isAfterCurrentMonth, formatAmount, validateTag, TAG_MAX_LEN, formatHeroAmount, formatMobileHeroAmount, dateToYearMonth, dateToMonthDay, localIsoDate, monthDateBounds } from '../../src/utils'
 
 // ── stepMonth ─────────────────────────────────────────────────────────────────
 
@@ -183,5 +183,35 @@ describe('formatHeroAmount', () => {
 describe('formatMobileHeroAmount', () => {
   it('puts refund plus before currency symbol', () => {
     expect(formatMobileHeroAmount('123', true)).toBe('+ $123')
+  })
+})
+
+// ── localIsoDate ──────────────────────────────────────────────────────────────
+
+describe('localIsoDate', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns today as YYYY-MM-DD', () => {
+    vi.useFakeTimers({ now: new Date(2026, 9, 14, 12) })
+    expect(localIsoDate()).toBe('2026-10-14')
+  })
+
+  it('counts back across a year boundary for the 90-day default range', () => {
+    vi.useFakeTimers({ now: new Date(2026, 0, 15, 12) })
+    expect(localIsoDate(-89)).toBe('2025-10-18')
+  })
+})
+
+// ── monthDateBounds ───────────────────────────────────────────────────────────
+
+describe('monthDateBounds', () => {
+  it('spans the first to the last day of the month', () => {
+    expect(monthDateBounds('2026-04')).toEqual({ from: '2026-04-01', to: '2026-04-30' })
+  })
+
+  it('handles a leap-year February', () => {
+    expect(monthDateBounds('2028-02')).toEqual({ from: '2028-02-01', to: '2028-02-29' })
   })
 })

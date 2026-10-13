@@ -5,7 +5,7 @@ import { MobileTransactionModal } from '../modal/MobileTransactionModal'
 import { openFilterSheet } from '../modal/BottomSheetPicker'
 import { t, translateCategory } from '../i18n'
 import { Transaction, TransactionType } from '../types'
-import { currentYearMonth } from '../utils'
+import { localIsoDate, monthDateBounds } from '../utils'
 import { renderSharedHeader } from './SharedHeader'
 import { buildAmountDisplay, buildLine3Display, buildWalletText } from './detailRow'
 import { baseCurrency, currencyDecimals, formatMoney, getCurrency, sumToBase } from '../money'
@@ -13,14 +13,23 @@ import { accountCurrency } from '../modal/transactionState'
 
 export const DETAIL_VIEW_TYPE = 'penny-wallet-detail'
 
+// Length of the default date range, counted inclusive of today.
+const DEFAULT_RANGE_DAYS = 90
+
+/** A transaction with the month file it lives in and its full YYYY-MM-DD date. */
+type DetailEntry = { tx: Transaction; yearMonth: string; fullDate: string }
+
+function defaultDateRange(): { from: string; to: string } {
+  return { from: localIsoDate(-(DEFAULT_RANGE_DAYS - 1)), to: localIsoDate() }
+}
+
 export class DetailView extends ItemView {
   private walletFile: WalletFile
-  private currentYearMonth: string
   private filterTypes: Set<TransactionType> = new Set()   // empty = all
   private filterCategories: Set<string> = new Set()       // empty = all
   private filterWallets: Set<string> = new Set()          // empty = all
-  private filterDateFrom: string | null = null            // YYYY-MM-DD; null = no lower bound
-  private filterDateTo: string | null = null              // YYYY-MM-DD; null = no upper bound
+  private filterDateFrom: string | null                   // YYYY-MM-DD; null = no lower bound
+  private filterDateTo: string | null                     // YYYY-MM-DD; null = no upper bound
   private filterSearch: string = ''
   private catPanelOpen: boolean = false
   private accountPanelOpen: boolean = false
@@ -28,7 +37,7 @@ export class DetailView extends ItemView {
   private viewportCleanup: (() => void) | undefined
 
   // Refs for lightweight list updates (search)
-  private cachedTransactions: Transaction[] = []
+  private cachedEntries: DetailEntry[] = []
   private listEl: HTMLElement | null = null
   private listWrapEl: HTMLElement | null = null
   private subtotalEl: HTMLElement | null = null
@@ -36,7 +45,19 @@ export class DetailView extends ItemView {
   constructor(leaf: WorkspaceLeaf, walletFile: WalletFile) {
     super(leaf)
     this.walletFile = walletFile
-    this.currentYearMonth = currentYearMonth()
+    const range = defaultDateRange()
+    this.filterDateFrom = range.from
+    this.filterDateTo = range.to
+  }
+
+  private get cachedTransactions(): Transaction[] {
+    return this.cachedEntries.map(e => e.tx)
+  }
+
+  private resetDateRange() {
+    const range = defaultDateRange()
+    this.filterDateFrom = range.from
+    this.filterDateTo = range.to
   }
 
   getViewType() { return DETAIL_VIEW_TYPE }
@@ -48,11 +69,15 @@ export class DetailView extends ItemView {
       this.filterTypes.clear()
       this.filterCategories.clear()
       this.filterWallets.clear()
-      this.filterDateFrom = null
-      this.filterDateTo = null
+      this.resetDateRange()
       this.filterSearch = ''
     }
-    if (state?.yearMonth) this.currentYearMonth = state.yearMonth as string
+    // A drill-down from a month (e.g. a dashboard pie slice) narrows the range to that month.
+    if (state?.yearMonth) {
+      const bounds = monthDateBounds(state.yearMonth as string)
+      this.filterDateFrom = bounds.from
+      this.filterDateTo = bounds.to
+    }
     if (state?.filterType) this.filterTypes = new Set([state.filterType as TransactionType])
     if (state?.filterCategory) this.filterCategories = new Set([state.filterCategory as string])
     await super.setState(state, result)
@@ -100,11 +125,7 @@ export class DetailView extends ItemView {
       view: this,
       walletFile: this.walletFile,
       activeView: 'detail',
-      yearMonth: this.currentYearMonth,
-      onMonthChange: (ym) => {
-        this.currentYearMonth = ym
-        void this.render()
-      },
+      yearMonth: null,
     })
 
     const filtersWrap = contentEl.createDiv('pw-detail-header')
@@ -125,23 +146,34 @@ export class DetailView extends ItemView {
     if (savedScroll > 0) listWrap.scrollTop = savedScroll
   }
 
+  // Loads every transaction inside the selected date range, across month files.
   private async ensureCacheForCurrentFilter() {
-    this.cachedTransactions = (await this.walletFile.readMonth(this.currentYearMonth))
+    const fromYm = this.filterDateFrom?.substring(0, 7) ?? null
+    const toYm = this.filterDateTo?.substring(0, 7) ?? null
+    const months = this.walletFile.getAllYearMonths()
+      .filter(ym => (fromYm === null || ym >= fromYm) && (toYm === null || ym <= toYm))
+    const perMonth = await Promise.all(months.map(async (ym) => {
+      const txs = await this.walletFile.readMonth(ym)
+      return txs.map((tx): DetailEntry => ({
+        tx,
+        yearMonth: ym,
+        fullDate: `${ym}-${tx.date.split('/')[1] ?? ''}`,
+      }))
+    }))
+    this.cachedEntries = perMonth.flat()
+      .filter(e => (!this.filterDateFrom || e.fullDate >= this.filterDateFrom)
+                && (!this.filterDateTo || e.fullDate <= this.filterDateTo))
       .sort((a, b) => {
-        const dateCompare = b.date.localeCompare(a.date)
+        const dateCompare = b.fullDate.localeCompare(a.fullDate)
         if (dateCompare !== 0) return dateCompare
-        if (a.createdAt && b.createdAt) return b.createdAt.localeCompare(a.createdAt)
+        if (a.tx.createdAt && b.tx.createdAt) return b.tx.createdAt.localeCompare(a.tx.createdAt)
         return 0
       })
   }
 
-  private getMonthDateDefaults(): { from: string; to: string } {
-    const [y, m] = this.currentYearMonth.split('-').map(Number)
-    const last = new Date(y, m, 0).getDate()
-    return {
-      from: `${this.currentYearMonth}-01`,
-      to: `${this.currentYearMonth}-${String(last).padStart(2, '0')}`,
-    }
+  private isDefaultDateRange(): boolean {
+    const range = defaultDateRange()
+    return this.filterDateFrom === range.from && this.filterDateTo === range.to
   }
 
   private renderCategoryDropdown(container: HTMLElement): void {
@@ -333,8 +365,7 @@ export class DetailView extends ItemView {
     if (this.filterTypes.size > 0) n++
     if (this.filterCategories.size > 0) n++
     if (this.filterWallets.size > 0) n++
-    if (this.filterDateFrom !== null) n++
-    if (this.filterDateTo !== null) n++
+    if (!this.isDefaultDateRange()) n++
     if (this.filterSearch !== '') n++
     return n
   }
@@ -425,13 +456,10 @@ export class DetailView extends ItemView {
 
   private renderDateRangeRow(header: HTMLElement): void {
     const row = header.createDiv('pw-detail-date-row')
-    const defaults = this.getMonthDateDefaults()
 
     const fromInput = row.createEl('input', { cls: 'pw-date-input' })
     fromInput.type = 'date'
-    fromInput.min = defaults.from
-    fromInput.max = defaults.to
-    fromInput.value = this.filterDateFrom ?? defaults.from
+    fromInput.value = this.filterDateFrom ?? ''
     fromInput.dataset['testid'] = 'date-input-from'
     fromInput.addEventListener('change', () => {
       this.filterDateFrom = fromInput.value || null
@@ -442,9 +470,7 @@ export class DetailView extends ItemView {
 
     const toInput = row.createEl('input', { cls: 'pw-date-input' })
     toInput.type = 'date'
-    toInput.min = defaults.from
-    toInput.max = defaults.to
-    toInput.value = this.filterDateTo ?? defaults.to
+    toInput.value = this.filterDateTo ?? ''
     toInput.dataset['testid'] = 'date-input-to'
     toInput.addEventListener('change', () => {
       this.filterDateTo = toInput.value || null
@@ -463,8 +489,7 @@ export class DetailView extends ItemView {
     this.filterTypes.clear()
     this.filterCategories.clear()
     this.filterWallets.clear()
-    this.filterDateFrom = null
-    this.filterDateTo = null
+    this.resetDateRange()
     this.filterSearch = ''
     void this.render()
   }
@@ -639,28 +664,31 @@ export class DetailView extends ItemView {
       sec.createDiv({ cls: 'pw-filter-label', text: t('detail.filterDateRange') })
 
       const row = sec.createDiv('pw-detail-date-row')
-      const defaults = this.getMonthDateDefaults()
+
+      // The range decides which months are loaded, so a change reloads the cache.
+      const reload = () => {
+        void this.ensureCacheForCurrentFilter().then(() => {
+          rerender()
+          this.applyFilters()
+        })
+      }
 
       const fromInput = row.createEl('input', { cls: 'pw-date-input' })
       fromInput.type = 'date'
-      fromInput.min = defaults.from
-      fromInput.max = defaults.to
-      fromInput.value = this.filterDateFrom ?? defaults.from
+      fromInput.value = this.filterDateFrom ?? ''
       fromInput.addEventListener('change', () => {
         this.filterDateFrom = fromInput.value || null
-        this.applyFilters()
+        reload()
       })
 
       row.createEl('span', { text: '─', cls: 'pw-date-sep' })
 
       const toInput = row.createEl('input', { cls: 'pw-date-input' })
       toInput.type = 'date'
-      toInput.min = defaults.from
-      toInput.max = defaults.to
-      toInput.value = this.filterDateTo ?? defaults.to
+      toInput.value = this.filterDateTo ?? ''
       toInput.addEventListener('change', () => {
         this.filterDateTo = toInput.value || null
-        this.applyFilters()
+        reload()
       })
     }
 
@@ -673,30 +701,26 @@ export class DetailView extends ItemView {
       this.filterTypes.clear()
       this.filterCategories.clear()
       this.filterWallets.clear()
-      this.filterDateFrom = null
-      this.filterDateTo = null
+      this.resetDateRange()
       this.filterSearch = ''
-      rerender()
-      this.applyFilters()
+      void this.ensureCacheForCurrentFilter().then(() => {
+        rerender()
+        this.applyFilters()
+      })
     })
   }
 
   private applyFilters() {
     if (!this.listEl || !this.subtotalEl) return
 
-    const filtered = this.cachedTransactions.filter(tx => {
+    // The date range is already applied when the cache is loaded.
+    const filtered = this.cachedEntries.filter(({ tx }) => {
       if (this.filterTypes.size > 0 && !this.filterTypes.has(tx.type)) return false
       if (this.filterCategories.size > 0 && !this.filterCategories.has(tx.category ?? '')) return false
       if (this.filterWallets.size > 0
        && !this.filterWallets.has(tx.wallet ?? '')
        && !this.filterWallets.has(tx.fromWallet ?? '')
        && !this.filterWallets.has(tx.toWallet ?? '')) return false
-      if (this.filterDateFrom || this.filterDateTo) {
-        const txDay = tx.date.split('/')[1] ?? ''
-        const txFullDate = `${this.currentYearMonth}-${txDay}`
-        if (this.filterDateFrom && txFullDate < this.filterDateFrom) return false
-        if (this.filterDateTo   && txFullDate > this.filterDateTo)   return false
-      }
       if (this.filterSearch) {
         const q = this.filterSearch.toLowerCase()
         const matchNote = tx.note?.toLowerCase().includes(q) ?? false
@@ -710,17 +734,28 @@ export class DetailView extends ItemView {
     if (filtered.length === 0) {
       this.listEl.createEl('p', { text: t('detail.noTransactions'), cls: 'pw-no-data' })
     } else {
-      for (const tx of filtered) {
-        this.renderTxRow(this.listEl, tx)
+      for (const entry of filtered) {
+        this.renderTxRow(this.listEl, entry)
       }
     }
 
-    // The filter can span accounts, so subtotals are stated in the base currency.
+    // The filter can span accounts, so subtotals are stated in the base currency,
+    // each month converted at its own rate.
     const config = this.walletFile.getConfig()
     const base = baseCurrency(config)
-    const summary = this.walletFile.computeSummary(filtered)
-    const subIncome = sumToBase(summary.income, config, this.currentYearMonth)
-    const subExpense = sumToBase(summary.expense, config, this.currentYearMonth)
+    const byMonth = new Map<string, Transaction[]>()
+    for (const { tx, yearMonth } of filtered) {
+      const list = byMonth.get(yearMonth)
+      if (list) list.push(tx)
+      else byMonth.set(yearMonth, [tx])
+    }
+    let subIncome = 0
+    let subExpense = 0
+    for (const [ym, txs] of byMonth) {
+      const summary = this.walletFile.computeSummary(txs)
+      subIncome += sumToBase(summary.income, config, ym)
+      subExpense += sumToBase(summary.expense, config, ym)
+    }
 
     this.subtotalEl.empty()
     this.subtotalEl.createEl('span', {
@@ -733,7 +768,7 @@ export class DetailView extends ItemView {
     })
   }
 
-  private renderTxRow(container: HTMLElement, tx: Transaction) {
+  private renderTxRow(container: HTMLElement, { tx, yearMonth }: DetailEntry) {
     const row = container.createDiv('pw-tx-row')
     row.dataset['testid'] = 'tx-row'
 
@@ -787,7 +822,7 @@ export class DetailView extends ItemView {
         this.walletFile,
         {},
         tx,
-        this.currentYearMonth,
+        yearMonth,
         () => (this.app.workspace as Events).trigger('penny-wallet:refresh'),
         null,
       ).open()

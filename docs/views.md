@@ -51,9 +51,13 @@ Each legend entry shows the category name, amount, and percentage. Small categor
 
 ## Transactions
 
-A full list of all transactions for the selected month, with filters and subtotals.
+A full list of all transactions within the selected date range, with filters and subtotals.
 
 ![Transactions view](/transactions-view.png)
+
+### Date Range
+
+The list shows every transaction between the **from** and **to** dates, newest first. The range defaults to the **last 90 days** and can span any number of months; **Clear all** returns to the default. Selecting a category slice in the Finance Overview opens this view with the range set to that month.
 
 ### Filters
 
@@ -61,7 +65,7 @@ A full list of all transactions for the selected month, with filters and subtota
 - **Wallet pills** — multi-select; pills are tinted per account so the active filter is visible at a glance
 - **Category dropdown** — checklist of categories present in the filtered results; select any combination to narrow further
 - **Keyword search** — filters transactions whose note contains the search text
-- **Filter sheet (detail view)** — a shared header opens a sheet for picking account and date range; on mobile, the sheet backdrop covers the Obsidian toolbar so the sheet owns the screen
+- **Filter sheet (mobile)** — a Filter button opens a sheet for picking type, category, account and date range; on mobile, the sheet backdrop covers the Obsidian toolbar so the sheet owns the screen
 
 ### Transaction Rows
 
