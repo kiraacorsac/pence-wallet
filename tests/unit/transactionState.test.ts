@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseAmountForEdit, getCategoryOptions, addTagToList, validateTransactionForm, type TransactionFormState } from '../../src/modal/transactionState'
+import { parseAmountForEdit, getCategoryOptions, addTagToList, validateTransactionForm, rememberLastEntry, getLastEntry, clearLastEntry, type TransactionFormState } from '../../src/modal/transactionState'
 import type { PennyWalletConfig } from '../../src/types'
 import { DEFAULT_CONFIG } from '../../src/types'
 
@@ -312,5 +312,28 @@ describe('buildTransactionPayload', () => {
   it('decimal amount preserved as float', () => {
     const tx = buildTransactionPayload({ ...baseState, amount: '12.5' }, payloadConfig)
     expect(tx.amount).toBe(12.5)
+  })
+})
+
+describe('last entry memory', () => {
+  const form = (patch: Partial<TransactionFormState>): TransactionFormState => ({
+    date: '2026-10-01', type: 'expense', wallet: 'Cash', fromWallet: '', toWallet: '',
+    category: '', note: '', tags: [], amount: '10', toAmount: '', isRefund: false,
+    ...patch,
+  })
+
+  it('is empty until a transaction is remembered', () => {
+    clearLastEntry()
+    expect(getLastEntry()).toBeNull()
+  })
+
+  it('keeps the date and account of an expense or income', () => {
+    rememberLastEntry(form({ date: '2026-09-30', wallet: 'Bank' }))
+    expect(getLastEntry()).toEqual({ date: '2026-09-30', account: 'Bank' })
+  })
+
+  it('keeps the source account of a transfer', () => {
+    rememberLastEntry(form({ type: 'transfer', wallet: '', fromWallet: 'Bank', toWallet: 'Cash' }))
+    expect(getLastEntry()).toEqual({ date: '2026-10-01', account: 'Bank' })
   })
 })

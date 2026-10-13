@@ -20,6 +20,30 @@ export interface TransactionFormState {
   isRefund: boolean
 }
 
+/** Date and account of the last transaction added, used to prefill the next one. */
+export interface LastEntry {
+  date: string         // 'yyyy-mm-dd'
+  account: string      // the account for expense/income, the source account for a transfer
+}
+
+// Held for the session only, so a restarted Obsidian opens on today again.
+let lastEntry: LastEntry | null = null
+
+export function rememberLastEntry(state: TransactionFormState): void {
+  lastEntry = {
+    date: state.date,
+    account: state.type === 'transfer' ? state.fromWallet : state.wallet,
+  }
+}
+
+export function getLastEntry(): LastEntry | null {
+  return lastEntry
+}
+
+export function clearLastEntry(): void {
+  lastEntry = null
+}
+
 /** Currency of a named account, or the base currency when it is unknown. */
 export function accountCurrency(name: string, config: PennyWalletConfig): string {
   const wallet = config.wallets.find(w => w.name === name)

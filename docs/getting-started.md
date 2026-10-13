@@ -50,8 +50,8 @@ Click the **PennyWallet icon** in the left ribbon to open the Finance Overview, 
 
 Fill in:
 - **Type** — Expense, Income, or Transfer
-- **Date** — defaults to today
-- **Account** — which account to record against
+- **Date** — defaults to today, or to the date of the last transaction you added this session
+- **Account** — which account to record against; defaults to the last one you used this session
 - **Category** — choose from the list or leave blank
 - **Note** — optional description
 - **Tags** — optional labels; on mobile, tap the tag row to open the picker

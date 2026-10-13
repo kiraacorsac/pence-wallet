@@ -3,7 +3,7 @@ import { Transaction, TransactionType, TransactionModalParams, PennyWalletConfig
 import { WalletFile } from '../io/WalletFile'
 import { dateToYearMonth } from '../utils'
 import { t } from '../i18n'
-import { parseAmountForEdit, getCategoryOptions as getCategoryOptionsFromState, validateTransactionForm, buildTransactionPayload, transferCurrencies, impliedRate, type TransactionFormState } from './transactionState'
+import { parseAmountForEdit, getCategoryOptions as getCategoryOptionsFromState, validateTransactionForm, buildTransactionPayload, transferCurrencies, impliedRate, getLastEntry, rememberLastEntry, type TransactionFormState } from './transactionState'
 import { baseCurrency, currencyDecimals, getCurrency, walletCurrency } from '../money'
 import { buildTagInput } from './TagInput'
 import { ConfirmModal } from './ConfirmModal'
@@ -81,12 +81,16 @@ export class TransactionModal extends Modal {
       this.isRefund = parsed.isRefund
     } else {
       this.type = (this.params.type as TransactionType) ?? 'expense'
-      this.date = this.params.date ?? todayString()
+      // Date and account carry over from the last transaction added, unless the caller sets them.
+      const last = getLastEntry()
+      this.date = this.params.date ?? last?.date ?? todayString()
       const activeWallets = this.getActiveWallets(config)
-      const defaultWallet = activeWallets.find(w => w.name === config.defaultWallet)
+      const lastWallet = activeWallets.find(w => w.name === last?.account)
+      const defaultWallet = lastWallet
+        ?? activeWallets.find(w => w.name === config.defaultWallet)
         ?? activeWallets[0]
       this.wallet = this.params.wallet ?? defaultWallet?.name ?? ''
-      this.fromWallet = this.params.fromWallet ?? ''
+      this.fromWallet = this.params.fromWallet ?? (this.type === 'transfer' ? lastWallet?.name : undefined) ?? ''
       this.toWallet = this.params.toWallet ?? ''
       this.category = this.params.category ?? ''
       this.note = this.params.note ?? ''
@@ -519,6 +523,7 @@ export class TransactionModal extends Modal {
         )
       } else {
         await this.walletFile.writeTransaction(newTx, newYearMonth)
+        rememberLastEntry(this.getFormState())
       }
 
       this.close()

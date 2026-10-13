@@ -16,7 +16,7 @@ The path is relative to the vault root. Change this if you want transactions sto
 
 ### Default Account
 
-The account pre-selected when opening the Add Transaction form. Choose any active account from the dropdown.
+The account pre-selected when opening the Add Transaction form. Choose any active account from the dropdown. Once you have added a transaction, the form opens on the account you last used instead, until Obsidian restarts.
 
 ### Base Currency
 

@@ -7,6 +7,7 @@ All notable changes to PennyWallet will be documented in this file.
 ### Changed
 - the Transactions view no longer has a month selector. It lists every transaction inside the chosen date range, which can now span months and years, and defaults to the last 90 days. **Clear all** returns to that default. Subtotals convert each month at that month's rate
 - opening a category from a Finance Overview pie still shows just that month: the date range is set to it
+- the Add Transaction form opens on the date and account of the last transaction you added, so a run of entries for the same day and account needs no re-picking. A transfer remembers its source account. This lasts until Obsidian restarts, after which the form opens on today and your default account again
 
 ## [0.0.19] - 2026-09-15
 
