@@ -3,9 +3,9 @@ import Sortable from 'sortablejs'
 import { WalletFile } from '../io/WalletFile'
 import { ConfirmModal } from '../modal/ConfirmModal'
 import { WalletEditModal } from '../modal/WalletEditModal'
-import { DecimalPlaces, RatePoint, Wallet, WalletBalance, WalletType } from '../types'
+import { DecimalPlaces, PricePoint, RatePoint, Wallet, WalletBalance, WalletType } from '../types'
 import { t, tn } from '../i18n'
-import { CURRENCIES, baseCurrency, formatMoney, getCurrency, walletCurrency } from '../money'
+import { CURRENCIES, baseCurrency, formatMoney, getCurrency, pricesFor, walletCurrency } from '../money'
 import { currentYearMonth } from '../utils'
 import { currenciesToPrice, type RateSync } from '../io/rateSync'
 
@@ -36,6 +36,8 @@ export class PennyWalletSettingTab extends PluginSettingTab {
       this.renderActiveWallets(walletBalances, walletsWithTransactions)
       this.renderArchivedWallets()
       this.renderAddWallet()
+      // Prices before rates: a security's trading currency is one more to rate.
+      this.renderPrices(walletBalances)
       this.renderExchangeRates()
       this.renderCategories()
 
@@ -436,6 +438,120 @@ export class PennyWalletSettingTab extends PluginSettingTab {
 
     addBtn.addEventListener('click', () => { void submitAddWallet() })
     form.bindSubmitKey(() => { void submitAddWallet() })
+  }
+
+  /**
+   * One group per security held, or once priced, each holding the dated price
+   * points that value it. Shown only to a vault with an investment account.
+   */
+  private renderPrices(walletBalances: WalletBalance[]) {
+    const config = this.walletFile.getConfig()
+    if (!config.wallets.some(w => w.type === 'investment')) return
+    const { containerEl } = this
+
+    // The currency a held symbol most plausibly trades in, before any price says:
+    // that of the account holding it.
+    const heldIn = new Map<string, string>()
+    for (const wb of walletBalances) {
+      for (const symbol of wb.holdings?.keys() ?? []) {
+        if (!heldIn.has(symbol)) heldIn.set(symbol, wb.currency)
+      }
+    }
+    const symbols = [...new Set([...heldIn.keys(), ...(config.prices ?? []).map(p => p.symbol)])]
+      .sort((a, b) => a.localeCompare(b))
+
+    new Setting(containerEl).setName(t('settings.prices')).setHeading()
+    const cardEl = containerEl.createDiv('pw-card')
+    cardEl.createDiv('pw-balance-hint').textContent = t('settings.pricesDesc')
+
+    const savePrices = async (prices: PricePoint[]) => {
+      const scrollTop = this.getSettingsScrollTop()
+      this.walletFile.updateConfig({ prices })
+      await this.walletFile.saveConfig()
+      this.app.workspace.trigger('penny-wallet:refresh')
+      void this.display(scrollTop)
+    }
+
+    if (symbols.length === 0) {
+      cardEl.createDiv('pw-rate-empty').textContent = t('settings.noHoldingsToPrice')
+    }
+
+    for (const symbol of symbols) {
+      const points = (config.prices ?? [])
+        .filter(p => p.symbol === symbol)
+        .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+
+      const group = cardEl.createDiv('pw-rate-group')
+      const header = group.createDiv('pw-rate-group-header')
+      header.createSpan({ text: symbol, cls: 'pw-rate-group-title' })
+      header.createSpan({
+        text: heldIn.has(symbol) ? t('settings.priceHint') : t('settings.notHeld'),
+        cls: 'pw-rate-group-hint',
+      })
+
+      if (heldIn.has(symbol) && pricesFor(config, symbol).length === 0) {
+        group.createDiv('pw-rate-empty').textContent = t('settings.noPrices')
+      }
+
+      for (const point of points) {
+        const row = group.createDiv('pw-rate-row')
+
+        // As with rates, a hand edit drops `source` and claims the point for good.
+        const takeOwnership = (patch: Partial<PricePoint>) =>
+          savePrices((config.prices ?? []).map(p =>
+            p === point ? { ...p, ...patch, source: undefined } : p))
+
+        const monthInput = row.createEl('input', { type: 'month', cls: 'pw-rate-input' })
+        monthInput.value = point.effectiveFrom
+        monthInput.addEventListener('change', () => {
+          if (!/^\d{4}-\d{2}$/.test(monthInput.value)) return
+          void takeOwnership({ effectiveFrom: monthInput.value })
+        })
+
+        const priceInput = row.createEl('input', { type: 'number', cls: 'pw-rate-input' })
+        priceInput.setAttribute('step', 'any')
+        priceInput.setAttribute('min', '0')
+        priceInput.value = String(point.price)
+        priceInput.addEventListener('change', () => {
+          const value = parseFloat(priceInput.value)
+          if (!Number.isFinite(value) || value <= 0) return
+          void takeOwnership({ price: value })
+        })
+
+        const currencySelect = row.createEl('select', { cls: 'pw-rate-input pw-price-currency' })
+        for (const c of CURRENCIES) currencySelect.createEl('option', { value: c.code, text: c.code })
+        if (!CURRENCIES.some(c => c.code === point.currency)) {
+          currencySelect.createEl('option', { value: point.currency, text: point.currency })
+        }
+        currencySelect.value = point.currency
+        currencySelect.addEventListener('change', () => {
+          void takeOwnership({ currency: currencySelect.value })
+        })
+
+        if (point.source === 'auto') {
+          row.createSpan({ text: t('settings.rateAuto'), cls: 'pw-rate-auto' })
+        }
+
+        const removeBtn = row.createEl('button', { text: t('ui.delete') })
+        removeBtn.addEventListener('click', () => {
+          void savePrices((config.prices ?? []).filter(p => p !== point))
+        })
+      }
+
+      const addBtn = group.createEl('button', { text: t('settings.addPrice') })
+      addBtn.addEventListener('click', () => {
+        const last = points[points.length - 1]
+        void savePrices([
+          ...(config.prices ?? []),
+          {
+            symbol,
+            effectiveFrom: currentYearMonth(),
+            price: last?.price ?? 1,
+            currency: last?.currency ?? heldIn.get(symbol) ?? baseCurrency(config),
+          },
+        ])
+      })
+    }
   }
 
   /**

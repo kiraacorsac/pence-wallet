@@ -3099,6 +3099,11 @@ select.pw-add-wallet-input {
   white-space: nowrap;
 }
 
+/* Prices in settings: the currency select needs only a code's width */
+.pw-rate-input.pw-price-currency {
+  flex: 0 0 88px;
+}
+
 /* Trade form */
 .pw-trade-symbol {
   text-transform: uppercase;
