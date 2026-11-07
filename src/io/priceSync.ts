@@ -1,6 +1,6 @@
 import { App, requestUrl } from 'obsidian'
 import type { PennyWalletConfig, PricePoint, WalletBalance } from '../types'
-import { hasRate } from '../money'
+import { CURRENCIES, hasRate } from '../money'
 import { currentYearMonth } from '../utils'
 import type { WalletFile } from './WalletFile'
 import type { RateSync } from './rateSync'
@@ -95,12 +95,23 @@ function roundPrice(n: number): number {
   return Number(n.toPrecision(7))
 }
 
-function parseOne(entry: unknown): Quote | null {
+/**
+ * Stocks and ETFs state their currency; a crypto pair does not, so it is read
+ * off the pair itself: BTC/EUR is quoted in EUR.
+ */
+function quoteCurrency(quote: Record<string, unknown>, symbol: string): string | null {
+  const stated = quote['currency']
+  if (typeof stated === 'string' && stated) return stated
+  const [, quoted] = symbol.split('/')
+  return quoted && CURRENCIES.some(c => c.code === quoted) ? quoted : null
+}
+
+function parseOne(entry: unknown, symbol: string): Quote | null {
   const quote = asRecord(entry)
   if (!quote || quote['status'] === 'error') return null
   const close = typeof quote['close'] === 'number' ? quote['close'] : parseFloat(String(quote['close']))
-  const currency = quote['currency']
-  if (!Number.isFinite(close) || close <= 0 || typeof currency !== 'string' || !currency) return null
+  const currency = quoteCurrency(quote, symbol)
+  if (!Number.isFinite(close) || close <= 0 || !currency) return null
   const normalized = normalizeQuote(close, currency)
   return { price: roundPrice(normalized.price), currency: normalized.currency }
 }
@@ -118,7 +129,7 @@ export function parseQuoteResponse(body: unknown, wanted: string[]): Map<string,
 
   const single = wanted.length === 1 && 'close' in root
   for (const symbol of wanted) {
-    const quote = parseOne(single ? root : root[symbol])
+    const quote = parseOne(single ? root : root[symbol], symbol)
     if (quote) result.set(symbol, quote)
   }
   return result

@@ -117,6 +117,10 @@ export function impliedSharePrice(quantity: string, amount: string): number | nu
   return a / Math.abs(q)
 }
 
+/** The most common coins, as the pairs the price provider knows them by. */
+export const CRYPTO_PAIRS = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE']
+  .flatMap(coin => [`${coin}/USD`, `${coin}/EUR`])
+
 /** Symbols worth offering as suggestions: everything ever traded or priced, sorted. */
 export function knownSymbols(ledgers: Iterable<Trade[]>, priced: Iterable<string>): string[] {
   const all = new Set<string>(priced)

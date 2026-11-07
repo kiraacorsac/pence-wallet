@@ -125,6 +125,19 @@ describe('parseQuoteResponse', () => {
     ])
   })
 
+  it('reads a crypto pair, whose quote states no currency, in the currency it is paired with', () => {
+    // Shaped like the live answer: no `currency` field at all.
+    const body = {
+      'BTC/USD': { symbol: 'BTC/USD', name: 'Bitcoin US Dollar', exchange: 'Binance', close: '75872.89' },
+      'ETH/EUR': { symbol: 'ETH/EUR', name: 'Ethereum Euro', exchange: 'Binance', close: '2009.46' },
+      'BTC/USDT': { symbol: 'BTC/USDT', close: '75870' },
+    }
+    expect([...parseQuoteResponse(body, ['BTC/USD', 'ETH/EUR', 'BTC/USDT']).entries()]).toEqual([
+      ['BTC/USD', { price: 75872.89, currency: 'USD' }],
+      ['ETH/EUR', { price: 2009.46, currency: 'EUR' }],
+    ])
+  })
+
   it('reads the unkeyed answer to a single-symbol request', () => {
     const body = { symbol: 'SPY', currency: 'USD', close: '735.28998', datetime: '2026-11-06' }
     expect(parseQuoteResponse(body, ['SPY']).get('SPY')).toEqual({ price: 735.29, currency: 'USD' })

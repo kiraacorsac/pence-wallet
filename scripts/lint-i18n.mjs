@@ -12,6 +12,7 @@ const ALLOWLIST = new Set([
   'API', 'URL', 'CSV', 'JSON', 'PWA', 'iOS', 'macOS', 'Android',
   'Markdown',
   'Twelve', 'Data', // Twelve Data, the price provider
+  'BTCUSD', // the crypto pair example, BTC/USD, with its slash stripped
   'Stage',
   'LinePay', 'PayPal',
   'TWD', 'USD', 'JPY', 'EUR',

@@ -267,9 +267,10 @@ describe('positionWorth / holdingsValue', () => {
 })
 
 describe('formatQuantity', () => {
-  it('shows as many decimals as the count has, up to six', () => {
+  it('shows as many decimals as the count has, up to eight', () => {
     expect(formatQuantity(10)).toBe('10')
     expect(formatQuantity(0.125)).toBe('0.125')
-    expect(formatQuantity(1.23456789)).toBe('1.234568')
+    expect(formatQuantity(0.00012345)).toBe('0.00012345')
+    expect(formatQuantity(1.234567891)).toBe('1.23456789')
   })
 })

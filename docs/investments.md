@@ -76,6 +76,17 @@ Symbols are stored upper-cased, exactly as you type them, and are what the price
 download asks for. Non-US listings use the provider's `SYMBOL:EXCHANGE` form,
 e.g. `VUSA:LSE`.
 
+### Crypto
+
+Crypto is entered as a **pair**: `BTC/USD`, `ETH/EUR`. The pair is priced in its
+second currency, so `BTC/EUR` needs no conversion in a EUR account and `BTC/USD`
+is converted through the exchange rates. The symbol field suggests the most common
+coins (BTC, ETH, SOL, XRP, ADA, DOGE) against USD and EUR, and quantities keep up
+to eight decimals.
+
+Use the pair, not the coin on its own: `BTC` alone is a stock-exchange ticker
+(the Grayscale Bitcoin Mini Trust ETF), and is priced as that.
+
 ---
 
 ## Valuation

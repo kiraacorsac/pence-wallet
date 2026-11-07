@@ -202,9 +202,9 @@ export function formatPrice(n: number, code: string): string {
   })
 }
 
-/** A share count: as many decimals as it has, up to six, grouped. */
+/** A share or coin count: as many decimals as it has, up to eight (a satoshi), grouped. */
 export function formatQuantity(n: number): string {
-  return n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })
+  return n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })
 }
 
 /** Convert between any two currencies via the base, at `yearMonth`'s rates. */

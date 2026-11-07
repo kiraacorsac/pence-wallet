@@ -4,7 +4,7 @@ import { WalletFile } from '../io/WalletFile'
 import { t, tn } from '../i18n'
 import { baseCurrency, formatPrice, formatQuantity, getCurrency, walletCurrency } from '../money'
 import { findTradeIndex, normalizeSymbol, sharesHeldOn } from '../io/investments'
-import { buildTradePayload, impliedSharePrice, knownSymbols, validateTradeForm, type TradeFormState } from './tradeState'
+import { CRYPTO_PAIRS, buildTradePayload, impliedSharePrice, knownSymbols, validateTradeForm, type TradeFormState } from './tradeState'
 import { ConfirmModal } from './ConfirmModal'
 import { todayString } from './TransactionModal'
 
@@ -145,7 +145,7 @@ export class TradeModal extends Modal {
   /** Ledgers load after the form is up: they feed suggestions and the held hint only. */
   private async loadLedgers(config: PennyWalletConfig) {
     this.ledgers = await this.walletFile.readAllTrades()
-    const symbols = knownSymbols(this.ledgers.values(), (config.prices ?? []).map(p => p.symbol))
+    const symbols = knownSymbols(this.ledgers.values(), [...(config.prices ?? []).map(p => p.symbol), ...CRYPTO_PAIRS])
     this.datalistEl.empty()
     for (const symbol of symbols) this.datalistEl.createEl('option', { value: symbol })
     this.updateHints()
