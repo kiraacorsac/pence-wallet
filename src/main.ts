@@ -1,6 +1,7 @@
 import { Notice, ObsidianProtocolData, Platform, Plugin, WorkspaceLeaf } from 'obsidian'
 import { WalletFile } from './io/WalletFile'
 import { RateSync } from './io/rateSync'
+import { PriceSync } from './io/priceSync'
 import { TransactionModal } from './modal/TransactionModal'
 import { MobileTransactionModal } from './modal/MobileTransactionModal'
 import { DashboardView, DASHBOARD_VIEW_TYPE } from './view/DashboardView'
@@ -16,12 +17,14 @@ import { initI18n, t } from './i18n'
 export default class PennyWalletPlugin extends Plugin {
   walletFile!: WalletFile
   rateSync!: RateSync
+  priceSync!: PriceSync
 
   async onload() {
     initI18n()
 
     this.walletFile = new WalletFile(this.app, this)
     this.rateSync = new RateSync(this.walletFile, this.app)
+    this.priceSync = new PriceSync(this.walletFile, this.app, this.rateSync)
 
     // ── All synchronous registrations FIRST (so ribbon/commands survive restart) ──
     this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this.walletFile))
@@ -47,12 +50,13 @@ export default class PennyWalletPlugin extends Plugin {
       setting.openTabById(this.manifest.id)
     } })
 
-    this.addSettingTab(new PennyWalletSettingTab(this.app, this, this.walletFile, this.rateSync))
+    this.addSettingTab(new PennyWalletSettingTab(this.app, this, this.walletFile, this.rateSync, this.priceSync))
 
-    // Hourly tick, so an Obsidian left open for days still refreshes its rates.
-    // Nothing leaves the vault unless the user has opted in and a day has passed.
+    // Hourly tick, so an Obsidian left open for days still refreshes its rates
+    // and prices. Nothing leaves the vault unless the user has opted in and a
+    // day has passed.
     this.registerInterval(window.setInterval(() => {
-      void this.rateSync.syncIfDue()
+      void this.syncDownloads()
     }, 60 * 60 * 1000))
 
     this.registerObsidianProtocolHandler('penny-wallet', (params: ObsidianProtocolData) => {
@@ -74,10 +78,20 @@ export default class PennyWalletPlugin extends Plugin {
       }
 
       // Not awaited: a slow or hanging request must never delay plugin load.
-      void this.rateSync.syncIfDue()
+      void this.syncDownloads()
     } catch (e) {
       console.error('PennyWallet: failed to load config', e)
       new Notice(t('notice.loadFailed'))
+    }
+  }
+
+  /** Prices first: a currency they newly quote is then in place for the rate download. */
+  private async syncDownloads() {
+    try {
+      await this.priceSync.syncIfDue()
+      await this.rateSync.syncIfDue()
+    } catch (e) {
+      console.error('PennyWallet: scheduled download failed', e)
     }
   }
 

@@ -125,6 +125,9 @@ export interface PennyWalletConfig {
   autoValidateOnLoad: boolean
   autoFetchRates: boolean
   lastRateFetch?: string  // ISO 8601 of the last successful rate download
+  autoFetchPrices: boolean
+  lastPriceFetch?: string     // ISO 8601 of the last completed price download
+  priceApiKeySecret?: string  // id of the keychain entry holding the API key - never the key itself
 }
 
 export interface TransactionModalParams {
@@ -184,8 +187,9 @@ export const DEFAULT_CONFIG: PennyWalletConfig = {
   },
   tags: [],
   autoValidateOnLoad: true,
-  // Off until asked for: this is the only feature that leaves the vault.
+  // Off until asked for: these are the only features that leave the vault.
   autoFetchRates: false,
+  autoFetchPrices: false,
 }
 
 export interface FrontmatterIssue {

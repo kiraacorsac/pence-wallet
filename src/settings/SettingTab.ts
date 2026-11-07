@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian'
+import { App, Notice, Plugin, PluginSettingTab, SecretComponent, Setting } from 'obsidian'
 import Sortable from 'sortablejs'
 import { WalletFile } from '../io/WalletFile'
 import { ConfirmModal } from '../modal/ConfirmModal'
@@ -8,15 +8,18 @@ import { t, tn } from '../i18n'
 import { CURRENCIES, baseCurrency, formatMoney, getCurrency, pricesFor, walletCurrency } from '../money'
 import { currentYearMonth } from '../utils'
 import { currenciesToPrice, type RateSync } from '../io/rateSync'
+import { DEFAULT_KEY_SECRET, hasKeychain, type PriceSync } from '../io/priceSync'
 
 export class PennyWalletSettingTab extends PluginSettingTab {
   private walletFile: WalletFile
   private rateSync: RateSync
+  private priceSync: PriceSync
 
-  constructor(app: App, plugin: Plugin, walletFile: WalletFile, rateSync: RateSync) {
+  constructor(app: App, plugin: Plugin, walletFile: WalletFile, rateSync: RateSync, priceSync: PriceSync) {
     super(app, plugin)
     this.walletFile = walletFile
     this.rateSync = rateSync
+    this.priceSync = priceSync
   }
 
   display(restoreScrollTop?: number): void {
@@ -464,6 +467,8 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     const cardEl = containerEl.createDiv('pw-card')
     cardEl.createDiv('pw-balance-hint').textContent = t('settings.pricesDesc')
 
+    this.renderPriceSync(cardEl)
+
     const savePrices = async (prices: PricePoint[]) => {
       const scrollTop = this.getSettingsScrollTop()
       this.walletFile.updateConfig({ prices })
@@ -552,6 +557,78 @@ export class PennyWalletSettingTab extends PluginSettingTab {
         ])
       })
     }
+  }
+
+  /**
+   * The price download controls. The key lives in Obsidian's keychain, which
+   * stays on this device; the config only records which entry to read. An
+   * Obsidian too old to have a keychain is told so, and prices by hand.
+   */
+  private renderPriceSync(cardEl: HTMLElement) {
+    const config = this.walletFile.getConfig()
+
+    if (!hasKeychain(this.app)) {
+      cardEl.createDiv('pw-balance-hint').textContent = t('settings.pricesNeedKeychain')
+      return
+    }
+
+    new Setting(cardEl)
+      .setName(t('settings.priceApiKey'))
+      .setDesc(t('settings.priceApiKeyDesc'))
+      .addComponent(el => new SecretComponent(this.app, el)
+        .setValue(config.priceApiKeySecret ?? DEFAULT_KEY_SECRET)
+        .onChange(async (id) => {
+          this.walletFile.updateConfig({ priceApiKeySecret: id || undefined })
+          await this.walletFile.saveConfig()
+        }))
+
+    new Setting(cardEl)
+      .setName(t('settings.autoFetchPrices'))
+      .setDesc(t('settings.autoFetchPricesDesc'))
+      .addToggle(toggle => toggle
+        .setValue(config.autoFetchPrices)
+        .onChange(async (value) => {
+          this.walletFile.updateConfig({ autoFetchPrices: value })
+          await this.walletFile.saveConfig()
+          if (value) await this.fetchPricesNow()
+        }),
+      )
+
+    const row = cardEl.createDiv('pw-rate-sync-row')
+    row.createSpan({ cls: 'pw-rate-sync-status', text: this.lastFetchLabel(config.lastPriceFetch) })
+    const btn = row.createEl('button', { text: t('settings.fetchRatesNow') })
+    btn.dataset['action'] = 'fetch-prices'
+    btn.addEventListener('click', () => {
+      btn.disabled = true
+      btn.textContent = t('settings.fetchingRates')
+      void this.fetchPricesNow()
+    })
+  }
+
+  private async fetchPricesNow(): Promise<void> {
+    const scrollTop = this.getSettingsScrollTop()
+    const result = await this.priceSync.syncNow()
+
+    if (!result.ok) {
+      const key = result.reason === 'noKey' ? 'notice.pricesNoKey'
+        : result.reason === 'badKey' ? 'notice.pricesBadKey'
+        : result.reason === 'nothingToPrice' ? 'notice.pricesNothingHeld'
+        : 'notice.pricesFetchFailed'
+      new Notice(t(key))
+    } else {
+      const summary = result.updated > 0
+        ? tn('notice.pricesUpdated', { count: String(result.updated) })
+        : t('notice.pricesUnchanged')
+      // Symbols the plan does not cover are the likeliest surprise, so they stay up longer.
+      if (result.missing.length > 0) {
+        new Notice(`${summary}\n${tn('notice.pricesMissing', { symbols: result.missing.join(', ') })}`, 10000)
+      } else {
+        new Notice(summary)
+      }
+    }
+
+    this.app.workspace.trigger('penny-wallet:refresh')
+    void this.display(scrollTop)
   }
 
   /**

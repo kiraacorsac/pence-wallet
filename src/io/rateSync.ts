@@ -3,6 +3,9 @@ import type { PennyWalletConfig, RatePoint } from '../types'
 import { baseCurrency, walletCurrency } from '../money'
 import { currentYearMonth } from '../utils'
 import type { WalletFile } from './WalletFile'
+import { RoundGate, attemptWithRetries, countChanges, isFetchDue, mergeAutoPoints } from './dailySync'
+
+export { countChanges }
 
 /**
  * Automatic exchange-rate downloads.
@@ -15,15 +18,6 @@ import type { WalletFile } from './WalletFile'
  */
 
 const ENDPOINT = 'https://open.er-api.com/v6/latest/'
-
-/** One day between successful downloads - the provider updates about that often. */
-const FETCH_INTERVAL_MS = 24 * 60 * 60 * 1000
-
-/** Delays before the 2nd and 3rd attempt of a single round. */
-const RETRY_DELAYS_MS = [30_000, 120_000]
-
-/** Backoff between failed rounds, so a dead network costs a handful of calls a day. */
-const ROUND_BACKOFF_MS = [60 * 60 * 1000, 2 * 60 * 60 * 1000, 4 * 60 * 60 * 1000]
 
 export type RateFetcher = (base: string) => Promise<unknown>
 
@@ -47,19 +41,11 @@ export function currenciesToPrice(config: PennyWalletConfig): string[] {
     .sort((a, b) => a.localeCompare(b))
 }
 
-/**
- * Whether a scheduled download is due. An unparseable or future `lastRateFetch`
- * counts as stale rather than fresh: a device whose clock runs ahead must not be
- * able to park every other device indefinitely.
- */
+/** Whether a scheduled download is due: opted in, something to price, and a day gone by. */
 export function shouldFetchRates(config: PennyWalletConfig, now: Date): boolean {
   if (!config.autoFetchRates) return false
   if (currenciesToPrice(config).length === 0) return false
-
-  const last = config.lastRateFetch ? Date.parse(config.lastRateFetch) : NaN
-  if (!Number.isFinite(last)) return true
-  if (last > now.getTime()) return true
-  return now.getTime() - last >= FETCH_INTERVAL_MS
+  return isFetchDue(config.lastRateFetch, now)
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -107,46 +93,21 @@ export function parseRateResponse(body: unknown, base: string, wanted: string[])
 
 /**
  * Fold downloaded rates into the table as points effective from `yearMonth`.
- *
- * Only that month is ever touched, and only rows the downloader itself wrote: a
- * rate typed by hand wins, even for the current month, and keeps winning until
- * the user deletes it.
+ * A rate typed by hand wins, even for the current month.
  */
 export function mergeAutoRates(
   existing: RatePoint[],
   fetched: Map<string, number>,
   yearMonth: string,
 ): RatePoint[] {
-  const manual = new Set(
-    existing
-      .filter(p => p.effectiveFrom === yearMonth && p.source !== 'auto')
-      .map(p => p.code),
+  return mergeAutoPoints(
+    existing,
+    fetched,
+    yearMonth,
+    point => point.code,
+    (point, rate) => ({ ...point, rate }),
+    (code, rate) => ({ code, effectiveFrom: yearMonth, rate, source: 'auto' as const }),
   )
-
-  const pending = new Map([...fetched].filter(([code]) => !manual.has(code)))
-
-  const merged = existing.map(point => {
-    if (point.effectiveFrom !== yearMonth || point.source !== 'auto') return point
-    const rate = pending.get(point.code)
-    if (rate === undefined) return point
-    pending.delete(point.code)
-    return { ...point, rate }
-  })
-
-  for (const [code, rate] of pending) {
-    merged.push({ code, effectiveFrom: yearMonth, rate, source: 'auto' })
-  }
-
-  return merged
-}
-
-/** How many points `mergeAutoRates` actually changed - for the "n updated" notice. */
-export function countChanges(before: RatePoint[], after: RatePoint[]): number {
-  let changed = after.length - before.length
-  for (let i = 0; i < before.length; i++) {
-    if (before[i] !== after[i]) changed++
-  }
-  return changed
 }
 
 // ─── Transport ────────────────────────────────────────────────────────────────
@@ -165,20 +126,13 @@ export const requestRates: RateFetcher = async (base: string) => {
   return body
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => { setTimeout(resolve, ms) })
-}
-
 // ─── Orchestration ────────────────────────────────────────────────────────────
 
 export class RateSync {
   private walletFile: WalletFile
   private app: App
   private fetcher: RateFetcher
-
-  private inFlight = false
-  private failedRounds = 0
-  private nextAttemptAt = 0
+  private gate = new RoundGate()
 
   constructor(walletFile: WalletFile, app: App, fetcher: RateFetcher = requestRates) {
     this.walletFile = walletFile
@@ -188,25 +142,20 @@ export class RateSync {
 
   /** The scheduled path: silent unless something is genuinely due. */
   async syncIfDue(now: Date = new Date()): Promise<'skipped' | 'ok' | 'failed'> {
-    if (this.inFlight) return 'skipped'
-    if (now.getTime() < this.nextAttemptAt) return 'skipped'
+    if (!this.gate.isOpen(now)) return 'skipped'
     if (!shouldFetchRates(this.walletFile.getConfig(), now)) return 'skipped'
 
     const outcome = await this.run(now)
     if (outcome.ok) return 'ok'
 
-    // A failed round is never recorded as a fetch, so tomorrow still tries; the
-    // in-memory gate is what stops an offline vault retrying on every tick.
-    const backoff = ROUND_BACKOFF_MS[Math.min(this.failedRounds, ROUND_BACKOFF_MS.length - 1)]
-    this.failedRounds++
-    this.nextAttemptAt = now.getTime() + backoff
+    this.gate.failed(now)
     console.error('PennyWallet: exchange-rate download failed', outcome.reason)
     return 'failed'
   }
 
   /** The user-initiated path: ignores the daily gate and reports back. */
   async syncNow(): Promise<SyncOutcome> {
-    if (this.inFlight) return { ok: false, reason: 'network' }
+    if (this.gate.inFlight) return { ok: false, reason: 'network' }
     return await this.run(new Date())
   }
 
@@ -216,9 +165,9 @@ export class RateSync {
     const wanted = currenciesToPrice(config)
     if (wanted.length === 0) return { ok: false, reason: 'nothingToPrice' }
 
-    this.inFlight = true
+    this.gate.inFlight = true
     try {
-      const attempt = await this.attempt(base)
+      const attempt = await attemptWithRetries(() => this.fetcher(base), 'exchange-rate')
       if (!attempt.reached) return { ok: false, reason: 'network' }
       if (isPermanentError(attempt.body)) return { ok: false, reason: 'unsupportedBase' }
 
@@ -231,26 +180,10 @@ export class RateSync {
       await this.walletFile.saveConfig()
       this.app.workspace.trigger('penny-wallet:refresh')
 
-      this.failedRounds = 0
-      this.nextAttemptAt = 0
+      this.gate.succeeded()
       return { ok: true, updated: countChanges(before, after) }
     } finally {
-      this.inFlight = false
-    }
-  }
-
-  /** Up to three tries; `reached` is false only when every one of them threw. */
-  private async attempt(base: string): Promise<{ reached: true; body: unknown } | { reached: false }> {
-    for (let i = 0; ; i++) {
-      try {
-        return { reached: true, body: await this.fetcher(base) }
-      } catch (e) {
-        if (i >= RETRY_DELAYS_MS.length) {
-          console.error('PennyWallet: exchange-rate request failed', e)
-          return { reached: false }
-        }
-        await sleep(RETRY_DELAYS_MS[i])
-      }
+      this.gate.inFlight = false
     }
   }
 }

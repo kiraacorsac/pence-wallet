@@ -11,6 +11,7 @@ const ALLOWLIST = new Set([
   'Obsidian', 'PennyWallet', 'Penny', 'Wallet',
   'API', 'URL', 'CSV', 'JSON', 'PWA', 'iOS', 'macOS', 'Android',
   'Markdown',
+  'Twelve', 'Data', // Twelve Data, the price provider
   'Stage',
   'LinePay', 'PayPal',
   'TWD', 'USD', 'JPY', 'EUR',
