@@ -11,9 +11,13 @@ import {
   rateFor,
   convert,
   toBase,
+  priceFor,
+  positionWorth,
+  holdingsValue,
+  formatQuantity,
 } from '../../src/money'
 import { DEFAULT_CONFIG } from '../../src/types'
-import type { PennyWalletConfig, RatePoint, Wallet } from '../../src/types'
+import type { PennyWalletConfig, Position, PricePoint, RatePoint, Wallet } from '../../src/types'
 
 function makeConfig(patch: Partial<PennyWalletConfig> = {}): PennyWalletConfig {
   return { ...DEFAULT_CONFIG, baseCurrency: 'GBP', decimalPlaces: 'auto', rates: [], ...patch }
@@ -210,5 +214,62 @@ describe('convert', () => {
 
   it('toBase is convert into the base currency', () => {
     expect(toBase(100, 'USD', config, '2026-03')).toBeCloseTo(80, 10)
+  })
+})
+
+// ── Prices and holdings ───────────────────────────────────────────────────────
+
+const NVDA_PRICES: PricePoint[] = [
+  { symbol: 'NVDA', effectiveFrom: '2026-10', price: 200, currency: 'USD' },
+  { symbol: 'NVDA', effectiveFrom: '2026-11', price: 180, currency: 'USD', source: 'auto' },
+]
+
+describe('priceFor', () => {
+  const config = makeConfig({ prices: NVDA_PRICES })
+
+  it('uses the price in force for the month, by the same rule as rates', () => {
+    expect(priceFor(config, 'NVDA', '2026-10')?.price).toBe(200)
+    expect(priceFor(config, 'NVDA', '2026-12')?.price).toBe(180)
+    expect(priceFor(config, 'NVDA', '2026-01')?.price).toBe(200)  // before the first: the earliest
+  })
+
+  it('is null for a symbol never priced, and ignores unusable points', () => {
+    expect(priceFor(config, 'SPY', '2026-11')).toBeNull()
+    const broken = makeConfig({ prices: [{ symbol: 'SPY', effectiveFrom: '2026-11', price: 0, currency: 'USD' }] })
+    expect(priceFor(broken, 'SPY', '2026-11')).toBeNull()
+  })
+})
+
+describe('positionWorth / holdingsValue', () => {
+  const config = makeConfig({ rates: USD_RATES, prices: NVDA_PRICES })
+  const pos: Position = { quantity: 10, cost: 1500 }
+
+  it('values a priced holding in the currency it trades in', () => {
+    expect(positionWorth(pos, 'NVDA', 'GBP', config, '2026-11'))
+      .toEqual({ amount: 1800, currency: 'USD', priced: true })
+  })
+
+  it('values an unpriced holding at cost, in the account currency', () => {
+    expect(positionWorth(pos, 'SPY', 'GBP', config, '2026-11'))
+      .toEqual({ amount: 1500, currency: 'GBP', priced: false })
+  })
+
+  it('totals holdings in any target currency at the month\'s price and rate', () => {
+    const holdings = new Map<string, Position>([['NVDA', pos], ['SPY', { quantity: 1, cost: 400 }]])
+    // NVDA: 10 × $180 × 0.75 = £1,350; SPY at cost £400
+    expect(holdingsValue(holdings, 'GBP', 'GBP', config, '2026-11')).toBeCloseTo(1750, 10)
+    // October's price, same rate: 10 × $200 × 0.75 = £1,500
+    expect(holdingsValue(holdings, 'GBP', 'GBP', config, '2026-10')).toBeCloseTo(1900, 10)
+    // March: the earliest price, and March's rate: 10 × $200 × 0.80 = £1,600
+    expect(holdingsValue(holdings, 'GBP', 'GBP', config, '2026-03')).toBeCloseTo(2000, 10)
+    expect(holdingsValue(undefined, 'GBP', 'GBP', config, '2026-11')).toBe(0)
+  })
+})
+
+describe('formatQuantity', () => {
+  it('shows as many decimals as the count has, up to six', () => {
+    expect(formatQuantity(10)).toBe('10')
+    expect(formatQuantity(0.125)).toBe('0.125')
+    expect(formatQuantity(1.23456789)).toBe('1.234568')
   })
 })

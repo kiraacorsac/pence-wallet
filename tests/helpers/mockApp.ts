@@ -45,6 +45,11 @@ export function createMockApp(initialFiles: Record<string, string> = {}) {
       store.set(path, content)
       return makeTFile(path)
     },
+    rename: async (file: InstanceType<typeof TFile>, newPath: string) => {
+      if (store.has(newPath)) throw new Error(`Destination file already exists: ${newPath}`)
+      store.set(newPath, store.get(file.path) ?? '')
+      store.delete(file.path)
+    },
     createFolder: async () => {},
     adapter: {
       exists: async (path: string) => store.has(path),

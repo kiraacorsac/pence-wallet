@@ -2,7 +2,7 @@ import { App, Modal, Notice } from 'obsidian'
 import { WalletFile } from '../io/WalletFile'
 import type { ValidationIssue } from '../types'
 import { t, tn } from '../i18n'
-import { formatMoneyMap } from '../money'
+import { formatMoneyMap, formatQuantity } from '../money'
 
 export class ValidationModal extends Modal {
   private issues: ValidationIssue[]
@@ -108,6 +108,49 @@ export class ValidationModal extends Modal {
         })())
       }
     }
+
+    const ledgerIssues = this.issues.filter(i => i.type === 'orphanedLedger' || i.type === 'negativeHolding')
+    if (ledgerIssues.length > 0) {
+      const sectionC = container.createDiv('pw-validation-section')
+      sectionC.createEl('span', { text: t('validation.ledgerSection'), cls: 'pw-validation-section-label' })
+      for (const issue of ledgerIssues) {
+        const card = sectionC.createDiv('pw-validation-card')
+        if (issue.type === 'negativeHolding') {
+          // Only the trades themselves can say which row is wrong, so there is no fix.
+          card.createEl('p', {
+            text: tn('validation.negativeHoldingDesc', {
+              wallet: issue.walletName,
+              symbol: issue.symbol,
+              quantity: formatQuantity(issue.quantity),
+              date: issue.date,
+              path: this.walletFile.ledgerPath(issue.walletName),
+            }),
+            cls: 'pw-validation-card-text',
+          })
+          continue
+        }
+        if (issue.type !== 'orphanedLedger') continue
+        card.createEl('p', {
+          text: tn('validation.orphanLedgerDesc', { path: issue.path, count: String(issue.tradeCount) }),
+          cls: 'pw-validation-card-text',
+        })
+        if (!this.walletFile.canRepairOrphanedLedger(issue)) {
+          card.createEl('p', { text: t('validation.orphanLedgerManual'), cls: 'pw-validation-card-text' })
+          continue
+        }
+        card.createEl('p', {
+          text: tn('validation.orphanLedgerFix', { wallet: issue.accountName ?? '' }),
+          cls: 'pw-validation-card-text',
+        })
+        const cardFooter = card.createDiv('pw-validation-card-footer')
+        const btn = cardFooter.createEl('button', { text: t('validation.fix'), cls: 'pw-validation-fix-btn' })
+        btn.addEventListener('click', () => void (async () => {
+          await this.walletFile.repairOrphanedLedger(issue.path)
+          btn.setText('✓')
+          btn.disabled = true
+        })())
+      }
+    }
   }
 
   private async fixAll() {
@@ -119,6 +162,8 @@ export class ValidationModal extends Modal {
       } else if (issue.type === 'orphanedWallet') {
         await this.walletFile.repairOrphanedWallet(issue.walletName)
         count++
+      } else if (issue.type === 'orphanedLedger') {
+        if (await this.walletFile.repairOrphanedLedger(issue.path)) count++
       }
     }
     new Notice(tn('validation.repaired', { count: String(count) }))

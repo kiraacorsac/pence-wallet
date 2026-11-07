@@ -66,8 +66,9 @@ export interface MonthSummary {
 
 export interface WalletBalance {
   wallet: Wallet
-  balance: number   // may be negative; in `currency`, not the base currency
+  balance: number   // may be negative; in `currency`, not the base currency. Cash only, for an investment account
   currency: string
+  holdings?: Map<string, Position>  // investment accounts only: symbol → position
 }
 
 export interface PennyWalletOptions {
@@ -95,6 +96,19 @@ export interface RatePoint {
   source?: 'auto'        // written by the downloader; absent means entered by hand
 }
 
+/**
+ * One dated price for a security: from `effectiveFrom` onwards, one share of
+ * `symbol` is worth `price` units of `currency` - the currency it trades in,
+ * which the exchange-rate table then converts like any other.
+ */
+export interface PricePoint {
+  symbol: string
+  effectiveFrom: string  // 'YYYY-MM'; applies to that month and every later one
+  price: number
+  currency: string       // ISO 4217 code the security is quoted in
+  source?: 'auto'        // written by the downloader; absent means entered by hand
+}
+
 /** 'auto' derives decimals from each currency; 0 | 2 force one setting globally. */
 export type DecimalPlaces = 0 | 2 | 'auto'
 
@@ -105,6 +119,7 @@ export interface PennyWalletConfig {
   decimalPlaces: DecimalPlaces
   baseCurrency: string
   rates: RatePoint[]
+  prices: PricePoint[]
   options: PennyWalletOptions
   tags: string[]
   autoValidateOnLoad: boolean
@@ -158,6 +173,7 @@ export const DEFAULT_CONFIG: PennyWalletConfig = {
   decimalPlaces: 0,
   baseCurrency: 'USD',
   rates: [],
+  prices: [],
   // Seeded with localized labels by WalletFile at config-creation time
   options: {
     categories: {
@@ -188,4 +204,21 @@ export interface OrphanedWalletIssue {
   yearMonths: string[]
 }
 
-export type ValidationIssue = FrontmatterIssue | OrphanedWalletIssue
+/** A ledger in the Investments folder that no investment account owns. */
+export interface OrphanedLedgerIssue {
+  type: 'orphanedLedger'
+  path: string
+  accountName: string | null  // from the ledger's frontmatter, when it has one
+  tradeCount: number
+}
+
+/** A ledger whose rows sell or move out more shares than were held at the time. */
+export interface NegativeHoldingIssue {
+  type: 'negativeHolding'
+  walletName: string
+  symbol: string
+  date: string      // 'YYYY-MM-DD' of the first trade that took it below zero
+  quantity: number  // the holding right after that trade
+}
+
+export type ValidationIssue = FrontmatterIssue | OrphanedWalletIssue | OrphanedLedgerIssue | NegativeHoldingIssue

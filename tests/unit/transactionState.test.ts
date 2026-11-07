@@ -134,6 +134,7 @@ describe('validateTransactionForm', () => {
     autoFetchRates: false,
     baseCurrency: 'USD',
     rates: [],
+    prices: [],
     options: {} as never,
   } as PennyWalletConfig
 

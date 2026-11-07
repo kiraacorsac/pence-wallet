@@ -9,9 +9,23 @@ import {
   SettingsStore,
   DEFAULT_CONFIG,
 } from '../types'
-import type { Wallet, FrontmatterIssue, OrphanedWalletIssue, ValidationIssue } from '../types'
+import type {
+  Wallet, FrontmatterIssue, OrphanedWalletIssue, NegativeHoldingIssue, Position, Trade, ValidationIssue,
+} from '../types'
 import { seedDefaultCategories } from '../i18n'
-import { baseCurrency, moneyMapsEqual, toBase, walletCurrency } from '../money'
+import { baseCurrency, holdingsValue, moneyMapsEqual, positionWorth, toBase, walletCurrency } from '../money'
+import { currentYearMonth } from '../utils'
+import {
+  INVESTMENTS_FOLDER,
+  applyTrade,
+  buildInvestmentContent,
+  findTradeIndex,
+  investmentFileName,
+  parseInvestmentFile,
+  parseLedgerMeta,
+  replayTrades,
+  tradeOrder,
+} from './investments'
 
 const TABLE_HEADER = `| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | AmountTo | CreatedAt |
 |------|------|--------|------|----|----------|------|------|--------|----------|-----------|`
@@ -196,6 +210,20 @@ export function detectOrphanedWallets(
   }))
 }
 
+/** The first trade, per symbol, that sells or moves out more shares than were held. */
+export function detectNegativeHoldings(walletName: string, trades: Trade[]): NegativeHoldingIssue[] {
+  const holdings = new Map<string, Position>()
+  const flagged = new Map<string, NegativeHoldingIssue>()
+  for (const trade of [...trades].sort(tradeOrder)) {
+    applyTrade(holdings, trade)
+    const quantity = holdings.get(trade.symbol)?.quantity ?? 0
+    if (quantity < 0 && !flagged.has(trade.symbol)) {
+      flagged.set(trade.symbol, { type: 'negativeHolding', walletName, symbol: trade.symbol, date: trade.date, quantity })
+    }
+  }
+  return [...flagged.values()]
+}
+
 // ─── WalletFile class ─────────────────────────────────────────────────────────
 
 function txDateOrder(a: Transaction, b: Transaction): number {
@@ -338,8 +366,7 @@ export class WalletFile {
     )
   }
 
-  private async ensureFolder(): Promise<void> {
-    const folder = this.config.folderName
+  private async ensureFolder(folder: string = this.config.folderName): Promise<void> {
     if (!this.app.vault.getFolderByPath(folder)) {
       try {
         await this.app.vault.createFolder(folder)
@@ -455,6 +482,7 @@ export class WalletFile {
   }
 
   async renameWalletInTransactions(oldName: string, newName: string): Promise<void> {
+    await this.renameLedger(oldName, newName)
     const months = this.getAllYearMonths()
     await Promise.all(months.map(async (ym) => {
       const content = await this.readMonthFile(ym)
@@ -501,6 +529,101 @@ export class WalletFile {
       (tx.tags ?? []).join(',') === (target.tags ?? []).join(',') &&
       (tx.createdAt === undefined || target.createdAt === undefined || tx.createdAt === target.createdAt),
     )
+  }
+
+  // ── Investment ledgers ───────────────────────────────────────────────────────
+
+  private investmentsFolder(): string {
+    return normalizePath(`${this.config.folderName}/${INVESTMENTS_FOLDER}`)
+  }
+
+  /** Where an investment account's ledger lives, whether or not it exists yet. */
+  ledgerPath(walletName: string): string {
+    return normalizePath(`${this.investmentsFolder()}/${investmentFileName(walletName)}.md`)
+  }
+
+  private investmentWallets(): Wallet[] {
+    return this.config.wallets.filter(w => w.type === 'investment')
+  }
+
+  /**
+   * Whether an investment account called `walletName` would share a ledger file
+   * with another one. Compared without case, as macOS and Windows file systems do.
+   */
+  ledgerNameTaken(walletName: string, exceptName?: string): boolean {
+    const target = investmentFileName(walletName).toLowerCase()
+    return this.investmentWallets().some(w =>
+      w.name !== exceptName && investmentFileName(w.name).toLowerCase() === target)
+  }
+
+  async readTrades(walletName: string): Promise<Trade[]> {
+    const file = this.app.vault.getFileByPath(this.ledgerPath(walletName))
+    if (!file) return []
+    return parseInvestmentFile(await this.app.vault.read(file))
+  }
+
+  /** Every investment account's trades, keyed by account name. */
+  async readAllTrades(): Promise<Map<string, Trade[]>> {
+    const wallets = this.investmentWallets()
+    const lists = await Promise.all(wallets.map(w => this.readTrades(w.name)))
+    return new Map(wallets.map((w, i) => [w.name, lists[i]]))
+  }
+
+  private async writeLedger(walletName: string, trades: Trade[]): Promise<void> {
+    const wallet = this.config.wallets.find(w => w.name === walletName)
+    const currency = wallet ? walletCurrency(wallet, this.config) : baseCurrency(this.config)
+    await this.ensureFolder()
+    await this.ensureFolder(this.investmentsFolder())
+    await this.vaultWrite(this.ledgerPath(walletName), buildInvestmentContent(walletName, currency, trades))
+  }
+
+  async writeTrade(walletName: string, trade: Trade): Promise<void> {
+    const trades = await this.readTrades(walletName)
+    trades.push({ ...trade, createdAt: trade.createdAt ?? new Date().toISOString() })
+    await this.writeLedger(walletName, trades)
+  }
+
+  /** Replace a trade in place, or move it when its account changes. */
+  async updateTrade(oldWallet: string, oldTrade: Trade, newWallet: string, newTrade: Trade): Promise<void> {
+    const next = { ...newTrade, createdAt: newTrade.createdAt ?? oldTrade.createdAt ?? new Date().toISOString() }
+    if (oldWallet !== newWallet) {
+      await this.deleteTrade(oldWallet, oldTrade)
+      await this.writeTrade(newWallet, next)
+      return
+    }
+    const trades = await this.readTrades(oldWallet)
+    const idx = findTradeIndex(trades, oldTrade)
+    // Gone from the file since the form opened: keep the edit rather than drop it.
+    if (idx === -1) trades.push(next)
+    else trades[idx] = next
+    await this.writeLedger(oldWallet, trades)
+  }
+
+  async deleteTrade(walletName: string, trade: Trade): Promise<void> {
+    const trades = await this.readTrades(walletName)
+    const idx = findTradeIndex(trades, trade)
+    if (idx === -1) return
+    trades.splice(idx, 1)
+    await this.writeLedger(walletName, trades)
+  }
+
+  /**
+   * Move a ledger to follow its account's rename, and restate its owner. Never
+   * moves it onto a file that is already there - that one belongs to someone else.
+   */
+  private async renameLedger(oldName: string, newName: string): Promise<void> {
+    // Only an investment account owns a ledger; a cash account that happens to
+    // share an orphaned ledger's name must not pick it up.
+    if (!this.investmentWallets().some(w => w.name === newName)) return
+    const file = this.app.vault.getFileByPath(this.ledgerPath(oldName))
+    if (!file) return
+    const trades = parseInvestmentFile(await this.app.vault.read(file))
+    const newPath = this.ledgerPath(newName)
+    if (newPath !== file.path) {
+      if (this.app.vault.getFileByPath(newPath)) return
+      await this.app.vault.rename(file, newPath)
+    }
+    await this.writeLedger(newName, trades)
   }
 
   // ── Frontmatter Cache ────────────────────────────────────────────────────────
@@ -562,7 +685,67 @@ export class WalletFile {
     const orphanIssues = detectOrphanedWallets(monthData, this.config.wallets)
     issues.push(...orphanIssues)
 
+    issues.push(...await this.detectLedgerIssues())
+
     return issues
+  }
+
+  private async detectLedgerIssues(): Promise<ValidationIssue[]> {
+    const issues: ValidationIssue[] = []
+
+    const owned = new Set(this.investmentWallets().map(w => this.ledgerPath(w.name)))
+    const folder = this.app.vault.getFolderByPath(this.investmentsFolder())
+    for (const file of folder?.children ?? []) {
+      if (!(file instanceof TFile) || file.extension !== 'md' || owned.has(file.path)) continue
+      const content = await this.app.vault.read(file)
+      issues.push({
+        type: 'orphanedLedger',
+        path: file.path,
+        accountName: parseLedgerMeta(content).account,
+        tradeCount: parseInvestmentFile(content).length,
+      })
+    }
+
+    for (const [walletName, trades] of await this.readAllTrades()) {
+      issues.push(...detectNegativeHoldings(walletName, trades))
+    }
+    return issues
+  }
+
+  /**
+   * Give an orphaned ledger its account back, archived and out of net assets,
+   * just as repairOrphanedWallet does for month-file rows. Only possible when
+   * the ledger names its account and that name maps back to this very file;
+   * returns whether it did.
+   */
+  canRepairOrphanedLedger(issue: { path: string; accountName: string | null }): boolean {
+    const name = issue.accountName
+    return !!name && this.ledgerPath(name) === issue.path && !this.config.wallets.some(w => w.name === name)
+  }
+
+  async repairOrphanedLedger(path: string): Promise<boolean> {
+    const file = this.app.vault.getFileByPath(path)
+    if (!file) return false
+    const meta = parseLedgerMeta(await this.app.vault.read(file))
+    const name = meta.account
+    if (!name || !this.canRepairOrphanedLedger({ path, accountName: name })) return false
+
+    this.config = {
+      ...this.config,
+      wallets: [
+        ...this.config.wallets,
+        {
+          name,
+          type: 'investment',
+          initialBalance: 0,
+          status: 'archived',
+          includeInNetAsset: false,
+          currency: meta.currency ?? baseCurrency(this.config),
+        },
+      ],
+    }
+    await this.saveConfig()
+    return true
   }
 
   async repairOrphanedWallet(walletName: string): Promise<void> {
@@ -596,7 +779,10 @@ export class WalletFile {
 
   async calculateWalletData(): Promise<{ balances: WalletBalance[]; walletsWithTransactions: Set<string> }> {
     const allMonths = this.getAllYearMonths()
-    const monthTransactions = await Promise.all(allMonths.map(ym => this.readMonth(ym)))
+    const [monthTransactions, trades] = await Promise.all([
+      Promise.all(allMonths.map(ym => this.readMonth(ym))),
+      this.readAllTrades(),
+    ])
     const allTransactions: Transaction[] = []
     for (const txs of monthTransactions) allTransactions.push(...txs)
 
@@ -606,8 +792,12 @@ export class WalletFile {
       if (tx.fromWallet)  walletsWithTransactions.add(tx.fromWallet)
       if (tx.toWallet)    walletsWithTransactions.add(tx.toWallet)
     }
+    // A ledger is history too: an account with only trades is archived, not deleted.
+    for (const [name, list] of trades) {
+      if (list.length > 0) walletsWithTransactions.add(name)
+    }
 
-    return { balances: this.computeWalletBalances(allTransactions), walletsWithTransactions }
+    return { balances: this.computeWalletBalances(allTransactions, trades), walletsWithTransactions }
   }
 
   /** The currency an expense or income row is denominated in. */
@@ -617,7 +807,12 @@ export class WalletFile {
     return wallet ? walletCurrency(wallet, this.config) : baseCurrency(this.config)
   }
 
-  computeWalletBalances(transactions: Transaction[]): WalletBalance[] {
+  /**
+   * Every account's balance. An investment account's `balance` is its cash -
+   * month-file flows plus what its trades spent and returned - and its shares
+   * come back separately as `holdings`.
+   */
+  computeWalletBalances(transactions: Transaction[], trades: Map<string, Trade[]> = new Map()): WalletBalance[] {
     const { wallets } = this.config
 
     const balanceMap = new Map<string, number>()
@@ -629,29 +824,45 @@ export class WalletFile {
       this.applyTxToBalanceMap(tx, balanceMap)
     }
 
-    return wallets.map(w => ({
-      wallet: w,
-      balance: balanceMap.get(w.name) ?? w.initialBalance,
-      currency: walletCurrency(w, this.config),
-    }))
+    return wallets.map(w => {
+      const balance = balanceMap.get(w.name) ?? w.initialBalance
+      const currency = walletCurrency(w, this.config)
+      if (w.type !== 'investment') return { wallet: w, balance, currency }
+      const ledger = replayTrades(trades.get(w.name) ?? [])
+      return { wallet: w, balance: balance + ledger.cash, currency, holdings: ledger.holdings }
+    })
   }
 
-  /** Net worth in the base currency, priced at `yearMonth`'s rates. */
+  /** An account's total worth in its own currency: cash, plus holdings at `yearMonth`'s prices. */
+  walletValue(wb: WalletBalance, yearMonth: string): number {
+    return wb.balance + holdingsValue(wb.holdings, wb.currency, wb.currency, this.config, yearMonth)
+  }
+
+  /** Net worth in the base currency, priced at `yearMonth`'s rates and prices. */
   computeNetAsset(walletBalances: WalletBalance[], yearMonth: string): number {
     let net = 0
-    for (const { wallet, balance, currency } of walletBalances) {
-      if (!wallet.includeInNetAsset) continue
-      net += toBase(balance, currency, this.config, yearMonth)
+    for (const wb of walletBalances) {
+      if (!wb.wallet.includeInNetAsset) continue
+      net += toBase(this.walletValue(wb, yearMonth), wb.currency, this.config, yearMonth)
     }
     return net
   }
 
-  /** Net worth split by the currency it is actually held in. */
-  netAssetByCurrency(walletBalances: WalletBalance[]): Map<string, number> {
+  /**
+   * Net worth split by the currency it is actually held in. A holding counts in
+   * the currency it trades in, or at cost in its account's currency until it
+   * has a price, so the parts still add up to computeNetAsset.
+   */
+  netAssetByCurrency(walletBalances: WalletBalance[], yearMonth: string = currentYearMonth()): Map<string, number> {
     const result = new Map<string, number>()
-    for (const { wallet, balance, currency } of walletBalances) {
+    const add = (code: string, amount: number) => result.set(code, (result.get(code) ?? 0) + amount)
+    for (const { wallet, balance, currency, holdings } of walletBalances) {
       if (!wallet.includeInNetAsset) continue
-      result.set(currency, (result.get(currency) ?? 0) + balance)
+      add(currency, balance)
+      for (const [symbol, pos] of holdings ?? []) {
+        const worth = positionWorth(pos, symbol, currency, this.config, yearMonth)
+        add(worth.currency, worth.amount)
+      }
     }
     return result
   }
@@ -683,12 +894,12 @@ export class WalletFile {
     return map
   }
 
-  /** Per-wallet balance at each target month end, for every active account */
+  /** Per-wallet worth at each target month end, in its own currency, for every active account */
   async getWalletBalanceTrend(targetMonths: string[]): Promise<Map<string, Map<string, number>>> {
     const trackedWallets = this.config.wallets.filter(w => w.status === 'active')
-    const allAvailableMonths = this.getAllYearMonths()
     const lastTarget = targetMonths[targetMonths.length - 1]
-    const relevantMonths = allAvailableMonths.filter(m => m <= lastTarget).sort()
+    const trades = await this.readAllTrades()
+    const relevantMonths = this.replayMonths(lastTarget, trades)
     const monthTransactions = await Promise.all(relevantMonths.map(ym => this.readMonth(ym)))
 
     const balanceMap = new Map<string, number>()
@@ -700,9 +911,10 @@ export class WalletFile {
 
     for (let i = 0; i < relevantMonths.length; i++) {
       for (const tx of monthTransactions[i]) this.applyTxToBalanceMap(tx, balanceMap)
-      if (targetMonths.includes(relevantMonths[i])) {
+      const ym = relevantMonths[i]
+      if (targetMonths.includes(ym)) {
         for (const w of trackedWallets) {
-          result.get(w.name)!.set(relevantMonths[i], balanceMap.get(w.name) ?? 0)
+          result.get(w.name)!.set(ym, this.walletValueAt(w, balanceMap.get(w.name) ?? 0, trades, ym))
         }
       }
     }
@@ -724,8 +936,10 @@ export class WalletFile {
 
   // ── Utility ──────────────────────────────────────────────────────────────────
 
-  /** Check if a wallet name is used in any transaction */
+  /** Check if a wallet name is used in any transaction, or an investment account has trades */
   async walletHasTransactions(walletName: string): Promise<boolean> {
+    if (this.investmentWallets().some(w => w.name === walletName)
+      && (await this.readTrades(walletName)).length > 0) return true
     const months = this.getAllYearMonths()
     for (const ym of months) {
       const txs = await this.readMonth(ym)
@@ -753,10 +967,22 @@ export class WalletFile {
     return result
   }
 
+  /**
+   * Months with anything to replay, up to `last`: every month file, and every
+   * month an investment account traded in even if nothing else happened then.
+   */
+  private replayMonths(last: string, trades: Map<string, Trade[]>): string[] {
+    const months = new Set(this.getAllYearMonths())
+    for (const list of trades.values()) {
+      for (const trade of list) months.add(trade.date.slice(0, 7))
+    }
+    return [...months].filter(m => m <= last).sort()
+  }
+
   async getNetAssetTimeline(targetMonths: string[]): Promise<Map<string, number>> {
-    const allAvailableMonths = this.getAllYearMonths()
     const lastTarget = targetMonths[targetMonths.length - 1]
-    const relevantMonths = allAvailableMonths.filter(m => m <= lastTarget).sort()
+    const trades = await this.readAllTrades()
+    const relevantMonths = this.replayMonths(lastTarget, trades)
 
     const monthTransactions = await Promise.all(relevantMonths.map(ym => this.readMonth(ym)))
 
@@ -773,7 +999,7 @@ export class WalletFile {
         this.applyTxToBalanceMap(tx, balanceMap)
       }
       if (targetMonths.includes(relevantMonths[i])) {
-        result.set(relevantMonths[i], this.computeNetAssetFromMap(balanceMap, relevantMonths[i]))
+        result.set(relevantMonths[i], this.computeNetAssetFromMap(balanceMap, relevantMonths[i], trades))
       }
     }
 
@@ -799,11 +1025,24 @@ export class WalletFile {
     }
   }
 
-  private computeNetAssetFromMap(map: Map<string, number>, yearMonth: string): number {
+  /**
+   * An account's worth at the end of `yearMonth`, in its own currency: the cash
+   * replayed from the month files and, for an investment account, the cash its
+   * trades moved plus its holdings at that month's prices.
+   */
+  private walletValueAt(wallet: Wallet, monthFileCash: number, trades: Map<string, Trade[]>, yearMonth: string): number {
+    if (wallet.type !== 'investment') return monthFileCash
+    const code = walletCurrency(wallet, this.config)
+    const ledger = replayTrades(trades.get(wallet.name) ?? [], yearMonth)
+    return monthFileCash + ledger.cash + holdingsValue(ledger.holdings, code, code, this.config, yearMonth)
+  }
+
+  private computeNetAssetFromMap(map: Map<string, number>, yearMonth: string, trades: Map<string, Trade[]>): number {
     let net = 0
     for (const w of this.config.wallets) {
       if (!w.includeInNetAsset) continue
-      net += toBase(map.get(w.name) ?? 0, walletCurrency(w, this.config), this.config, yearMonth)
+      const value = this.walletValueAt(w, map.get(w.name) ?? 0, trades, yearMonth)
+      net += toBase(value, walletCurrency(w, this.config), this.config, yearMonth)
     }
     return net
   }

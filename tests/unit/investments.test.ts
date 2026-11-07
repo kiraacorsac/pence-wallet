@@ -7,7 +7,7 @@ import {
   investmentFileName,
   isValidSymbol,
   normalizeSymbol,
-  parseInvestmentAccount,
+  parseLedgerMeta,
   parseInvestmentFile,
   parseTradeRow,
   replayTrades,
@@ -135,12 +135,12 @@ describe('buildInvestmentContent / parseInvestmentFile', () => {
     expect(parseInvestmentFile(content)).toHaveLength(1)
   })
 
-  it('records the account, quoting names YAML would misread', () => {
+  it('records the account and currency, quoting names YAML would misread', () => {
     const content = buildInvestmentContent('IBKR: main #1', 'USD', [])
     expect(content).toContain('account: "IBKR: main #1"\n')
-    expect(parseInvestmentAccount(content)).toBe('IBKR: main #1')
-    expect(parseInvestmentAccount('---\naccount: Plain\n---\n')).toBe('Plain')
-    expect(parseInvestmentAccount('no frontmatter')).toBeNull()
+    expect(parseLedgerMeta(content)).toEqual({ account: 'IBKR: main #1', currency: 'USD' })
+    expect(parseLedgerMeta('---\naccount: Plain\n---\n')).toEqual({ account: 'Plain', currency: null })
+    expect(parseLedgerMeta('no frontmatter')).toEqual({ account: null, currency: null })
   })
 })
 

@@ -139,25 +139,31 @@ export function parseInvestmentFile(content: string): Trade[] {
   return trades
 }
 
-/** The account a ledger belongs to, from its frontmatter; null when it has none. */
-export function parseInvestmentAccount(content: string): string | null {
+function parseScalar(raw: string): string | null {
+  if (!raw.startsWith('"')) return raw || null
+  try {
+    const value: unknown = JSON.parse(raw)
+    return typeof value === 'string' ? value : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The account a ledger belongs to and the currency it settles in, from its
+ * frontmatter. Either is null when the file does not say.
+ */
+export function parseLedgerMeta(content: string): { account: string | null; currency: string | null } {
+  const meta = { account: null as string | null, currency: null as string | null }
   const match = content.match(/^---\n([\s\S]*?)\n---/)
-  if (!match) return null
+  if (!match) return meta
   for (const line of match[1].split('\n')) {
     const idx = line.indexOf(':')
-    if (idx === -1 || line.slice(0, idx).trim() !== 'account') continue
-    const raw = line.slice(idx + 1).trim()
-    if (raw.startsWith('"')) {
-      try {
-        const value: unknown = JSON.parse(raw)
-        return typeof value === 'string' ? value : null
-      } catch {
-        return null
-      }
-    }
-    return raw || null
+    if (idx === -1) continue
+    const key = line.slice(0, idx).trim()
+    if (key === 'account' || key === 'currency') meta[key] = parseScalar(line.slice(idx + 1).trim())
   }
-  return null
+  return meta
 }
 
 /** Eight decimals: enough for any fractional share, and no float residue in the file. */

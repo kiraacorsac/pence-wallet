@@ -33,11 +33,17 @@ export type SyncOutcome =
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
-/** The non-base currencies actually held by a wallet - the only ones worth pricing. */
+/**
+ * The non-base currencies actually in use - the only ones worth pricing: those
+ * a wallet is held in, and those a security is quoted in, since a GBP vault
+ * holding NVDA needs USD priced even with no USD account.
+ */
 export function currenciesToPrice(config: PennyWalletConfig): string[] {
   const base = baseCurrency(config)
-  return [...new Set((config.wallets ?? []).map(w => walletCurrency(w, config)))]
-    .filter(code => code !== base)
+  const held = (config.wallets ?? []).map(w => walletCurrency(w, config))
+  const quoted = (config.prices ?? []).map(p => p.currency)
+  return [...new Set([...held, ...quoted])]
+    .filter(code => !!code && code !== base)
     .sort((a, b) => a.localeCompare(b))
 }
 

@@ -1,4 +1,4 @@
-import type { PennyWalletConfig, RatePoint, Wallet } from './types'
+import type { PennyWalletConfig, Position, PricePoint, RatePoint, Wallet } from './types'
 
 export interface CurrencyInfo {
   code: string
@@ -120,23 +120,79 @@ export function hasRate(config: PennyWalletConfig, code: string): boolean {
 }
 
 /**
- * Units of the base currency that one unit of `code` was worth in `yearMonth`:
- * the latest rate effective on or before that month. A month earlier than every
- * recorded rate uses the earliest one rather than failing, and an unpriced
- * currency returns 1 so a half-configured vault degrades to raw numbers instead
- * of NaN.
+ * The point in force in `yearMonth`: the latest effective on or before it. A
+ * month earlier than every point uses the earliest one rather than failing.
+ * `points` must be sorted by `effectiveFrom`.
  */
-export function rateFor(config: PennyWalletConfig, code: string, yearMonth: string): number {
-  if (code === baseCurrency(config)) return 1
-  const points = ratesFor(config, code)
-  if (points.length === 0) return 1
-
-  let match: RatePoint | undefined
+function effectiveAt<T extends { effectiveFrom: string }>(points: T[], yearMonth: string): T | undefined {
+  let match: T | undefined
   for (const point of points) {
     if (point.effectiveFrom <= yearMonth) match = point
     else break
   }
-  return (match ?? points[0]).rate
+  return match ?? points[0]
+}
+
+/**
+ * Units of the base currency that one unit of `code` was worth in `yearMonth`.
+ * An unpriced currency returns 1 so a half-configured vault degrades to raw
+ * numbers instead of NaN.
+ */
+export function rateFor(config: PennyWalletConfig, code: string, yearMonth: string): number {
+  if (code === baseCurrency(config)) return 1
+  return effectiveAt(ratesFor(config, code), yearMonth)?.rate ?? 1
+}
+
+/** Price points for `symbol`, oldest first, with unusable ones dropped. */
+export function pricesFor(config: PennyWalletConfig, symbol: string): PricePoint[] {
+  return (config.prices ?? [])
+    .filter(p => p.symbol === symbol && Number.isFinite(p.price) && p.price > 0 && !!p.currency)
+    .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+}
+
+/** The price of one share in `yearMonth`, by the same dating rule as rates; null if never priced. */
+export function priceFor(config: PennyWalletConfig, symbol: string, yearMonth: string): PricePoint | null {
+  return effectiveAt(pricesFor(config, symbol), yearMonth) ?? null
+}
+
+/**
+ * What a holding is worth in `yearMonth`, in the currency that worth is
+ * naturally stated in: shares × price in the security's own currency, or - for
+ * a security with no price at all - what it cost, in the account's currency.
+ * Valuing at cost rather than zero is what keeps a purchase from looking like
+ * a loss until its first price arrives.
+ */
+export function positionWorth(
+  pos: Position,
+  symbol: string,
+  accountCode: string,
+  config: PennyWalletConfig,
+  yearMonth: string,
+): { amount: number; currency: string; priced: boolean } {
+  const price = priceFor(config, symbol, yearMonth)
+  if (!price) return { amount: pos.cost, currency: accountCode, priced: false }
+  return { amount: pos.quantity * price.price, currency: price.currency, priced: true }
+}
+
+/** Every holding of an account, valued in `target` at `yearMonth`'s prices and rates. */
+export function holdingsValue(
+  holdings: Map<string, Position> | undefined,
+  accountCode: string,
+  target: string,
+  config: PennyWalletConfig,
+  yearMonth: string,
+): number {
+  let total = 0
+  for (const [symbol, pos] of holdings ?? []) {
+    const worth = positionWorth(pos, symbol, accountCode, config, yearMonth)
+    total += convert(worth.amount, worth.currency, target, config, yearMonth)
+  }
+  return total
+}
+
+/** A share count: as many decimals as it has, up to six, grouped. */
+export function formatQuantity(n: number): string {
+  return n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })
 }
 
 /** Convert between any two currencies via the base, at `yearMonth`'s rates. */

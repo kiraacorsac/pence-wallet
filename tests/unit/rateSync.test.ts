@@ -48,6 +48,17 @@ describe('currenciesToPrice', () => {
     const legacy: Wallet = { name: 'old', type: 'cash', initialBalance: 0, status: 'active', includeInNetAsset: true }
     expect(currenciesToPrice(makeConfig({ wallets: [legacy] }))).toEqual([])
   })
+
+  it('includes the currencies securities are quoted in, even with no account in them', () => {
+    const config = makeConfig({
+      wallets: [WALLETS[0]],
+      prices: [
+        { symbol: 'NVDA', effectiveFrom: '2026-11', price: 186.64, currency: 'USD' },
+        { symbol: 'VUSA', effectiveFrom: '2026-11', price: 92.1, currency: 'EUR' },
+      ],
+    })
+    expect(currenciesToPrice(config)).toEqual(['EUR', 'USD'])
+  })
 })
 
 // ─── shouldFetchRates ─────────────────────────────────────────────────────────
