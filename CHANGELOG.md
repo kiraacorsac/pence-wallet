@@ -2,7 +2,7 @@
 
 All notable changes to PennyWallet will be documented in this file.
 
-## [Unreleased]
+## [0.0.22] - 2026-11-07
 
 ### Added
 - crypto in investment accounts, entered as a pair such as `BTC/USD` or `ETH/EUR`. Prices download like any other, in the pair's currency; the symbol field suggests the most common coins against USD and EUR
