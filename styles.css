@@ -109,7 +109,8 @@ body {
 /* Allow text selection in all PennyWallet views (Obsidian sets user-select: none on leaves) */
 .pw-dashboard,
 .pw-detail,
-.pw-asset {
+.pw-asset,
+.pw-investments {
   user-select: text;
   -webkit-user-select: text;
 }
@@ -1375,6 +1376,7 @@ button.pw-mobile-calculator-done {
 .pw-wallet-badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
 .pw-badge-cash       { background: var(--pw-income-tint); color: var(--pw-cash); }
 .pw-badge-bank       { background: var(--pw-bank-tint); color: var(--pw-bank); }
+.pw-badge-investment { background: var(--pw-payment-tint); color: var(--pw-payment); }
 .pw-badge-currency   { background: var(--background-modifier-border); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
 .pw-wallet-name {
@@ -2920,4 +2922,216 @@ select.pw-add-wallet-input {
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Investments ── */
+
+/* An investment account's row in the Assets view opens its holdings */
+.pw-asset-wallet-row.is-link {
+  cursor: pointer;
+}
+
+.pw-asset-wallet-row.is-link:hover .pw-wallet-name {
+  color: var(--interactive-accent);
+}
+
+.pw-investments {
+  padding: 16px;
+}
+
+.pw-investments-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 900px;
+  margin: 16px auto 0;
+}
+
+.pw-invest-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pw-invest-title .pw-card-title {
+  margin-bottom: 0;
+}
+
+.pw-invest-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pw-invest-summary-item {
+  background: var(--background-primary);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.pw-invest-summary-value {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pw-invest-summary-item.is-total .pw-invest-summary-value { color: var(--text-normal); }
+.pw-invest-summary-item.is-positive .pw-invest-summary-value { color: var(--pw-income); }
+.pw-invest-summary-item.is-negative .pw-invest-summary-value { color: var(--pw-expense); }
+
+.pw-invest-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 12px 0 6px;
+}
+
+/* Holdings table: one grid per row so columns line up without a <table> */
+.pw-holdings {
+  display: flex;
+  flex-direction: column;
+}
+
+.pw-holdings-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 1fr) repeat(5, minmax(0, 1.2fr));
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pw-holdings-row:last-child {
+  border-bottom: none;
+}
+
+.pw-holdings-head {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+.pw-holdings-row > span:not(.pw-holdings-symbol) {
+  text-align: right;
+}
+
+.pw-holdings-symbol {
+  font-weight: 600;
+}
+
+.pw-holdings-price,
+.pw-holdings-gain {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.pw-holdings-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.pw-holdings-gain.is-positive { color: var(--pw-income); }
+.pw-holdings-gain.is-negative,
+.pw-holdings-shares.is-negative { color: var(--pw-expense); }
+
+/* Trade history */
+.pw-trade-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.pw-trade-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pw-trade-row:last-child {
+  border-bottom: none;
+}
+
+.pw-trade-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.pw-trade-date {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pw-trade-buy    { background: var(--pw-income-tint); color: var(--pw-income); }
+.pw-trade-sell   { background: var(--pw-expense-tint); color: var(--pw-expense); }
+.pw-trade-adjust { background: var(--pw-neutral-tint); color: var(--text-muted); }
+
+.pw-trade-main {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pw-trade-what {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pw-trade-note {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pw-trade-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Trade form */
+.pw-trade-symbol {
+  text-transform: uppercase;
+}
+
+.pw-trade-symbol::placeholder {
+  text-transform: none;
+}
+
+.pw-trade-hint {
+  margin: -4px 0 8px;
+}
+
+@media (max-width: 600px) {
+  .pw-invest-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Cost is the column a narrow screen can best do without */
+  .pw-holdings-row {
+    grid-template-columns: minmax(56px, 1fr) repeat(4, minmax(0, 1.2fr));
+  }
+
+  .pw-holdings-cost {
+    display: none;
+  }
+
+  .pw-trade-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .pw-trade-date {
+    grid-column: 1 / -1;
+    font-size: 11px;
+  }
 }

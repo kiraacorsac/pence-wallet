@@ -190,6 +190,18 @@ export function holdingsValue(
   return total
 }
 
+/**
+ * A price per share: the currency's own minor units, and up to four decimals
+ * when it has them, since penny stocks and fractional prices are common.
+ */
+export function formatPrice(n: number, code: string): string {
+  const dp = getCurrency(code).decimals
+  return getCurrency(code).symbol + n.toLocaleString(undefined, {
+    minimumFractionDigits: dp,
+    maximumFractionDigits: Math.max(dp, 4),
+  })
+}
+
 /** A share count: as many decimals as it has, up to six, grouped. */
 export function formatQuantity(n: number): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 6 })

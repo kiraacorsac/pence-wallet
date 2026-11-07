@@ -6,6 +6,8 @@ import { MobileTransactionModal } from './modal/MobileTransactionModal'
 import { DashboardView, DASHBOARD_VIEW_TYPE } from './view/DashboardView'
 import { DetailView, DETAIL_VIEW_TYPE } from './view/DetailView'
 import { AssetView, ASSET_VIEW_TYPE } from './view/AssetView'
+import { InvestmentView, INVESTMENT_VIEW_TYPE } from './view/InvestmentView'
+import { TradeModal } from './modal/TradeModal'
 import { PennyWalletSettingTab } from './settings/SettingTab'
 import { ValidationModal } from './modal/ValidationModal'
 import { TransactionModalParams, TransactionType } from './types'
@@ -25,6 +27,7 @@ export default class PennyWalletPlugin extends Plugin {
     this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this.walletFile))
     this.registerView(DETAIL_VIEW_TYPE, (leaf) => new DetailView(leaf, this.walletFile))
     this.registerView(ASSET_VIEW_TYPE, (leaf) => new AssetView(leaf, this.walletFile))
+    this.registerView(INVESTMENT_VIEW_TYPE, (leaf) => new InvestmentView(leaf, this.walletFile))
 
     this.addRibbonIcon('wallet', 'Penny wallet', () => { void this.openDashboard() })
 
@@ -32,6 +35,8 @@ export default class PennyWalletPlugin extends Plugin {
     this.addCommand({ id: 'open-asset', name: 'Open assets', callback: () => { void this.openAssetView() } })
     this.addCommand({ id: 'open-detail', name: 'Open transactions', callback: () => { void this.openDetailView() } })
     this.addCommand({ id: 'add-transaction', name: 'Add transaction', callback: () => this.openTransactionModal() })
+    this.addCommand({ id: 'open-investments', name: 'Open investments', callback: () => { void this.openInvestmentView() } })
+    this.addCommand({ id: 'add-trade', name: 'Add trade', callback: () => this.openTradeModal() })
     this.addCommand({ id: 'validate-data', name: 'Validate data', callback: () => void this.runValidation(true) })
     this.addCommand({ id: 'refresh', name: 'Refresh views', callback: () => {
       this.app.workspace.trigger('penny-wallet:refresh')
@@ -101,6 +106,20 @@ export default class PennyWalletPlugin extends Plugin {
     await this.openOrRevealView(ASSET_VIEW_TYPE)
   }
 
+  async openInvestmentView() {
+    await this.openOrRevealView(INVESTMENT_VIEW_TYPE)
+  }
+
+  openTradeModal() {
+    const hasAccount = this.walletFile.getConfig().wallets
+      .some(w => w.type === 'investment' && w.status === 'active')
+    if (!hasAccount) {
+      new Notice(t('err.noInvestmentAccounts'))
+      return
+    }
+    new TradeModal(this.app, this.walletFile, {}, null, () => this.refreshViews()).open()
+  }
+
   openTransactionModal(params: TransactionModalParams = {}) {
     const ModalClass = Platform.isMobile ? MobileTransactionModal : TransactionModal
     new ModalClass(
@@ -145,6 +164,9 @@ export default class PennyWalletPlugin extends Plugin {
     })
     this.app.workspace.getLeavesOfType(ASSET_VIEW_TYPE).forEach((leaf: WorkspaceLeaf) => {
       void (leaf.view as AssetView).render()
+    })
+    this.app.workspace.getLeavesOfType(INVESTMENT_VIEW_TYPE).forEach((leaf: WorkspaceLeaf) => {
+      void (leaf.view as InvestmentView).render()
     })
   }
 

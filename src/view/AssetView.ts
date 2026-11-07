@@ -7,6 +7,7 @@ import { Chart } from 'chart.js'
 import { MonthData, drawNetChart, drawPie, getMonthRange } from './charts'
 import { renderCard } from './components'
 import { baseCurrency, currencyDecimals, formatMoney, formatMoneyMap, getCurrency, sumToBase, toBase } from '../money'
+import { INVESTMENT_VIEW_TYPE } from './InvestmentView'
 
 export const ASSET_VIEW_TYPE = 'penny-wallet-asset'
 
@@ -84,8 +85,12 @@ export class AssetView extends ItemView {
     const walletList = walletCard.createDiv('pw-wallet-list')
 
     // Each account reads in its own currency; only the roll-up is converted.
-    for (const { wallet, balance, currency } of walletBalances) {
+    // An investment account reads at its total worth, and opens its holdings.
+    const ym = currentYearMonth()
+    for (const wb of walletBalances) {
+      const { wallet, currency } = wb
       if (wallet.status === 'archived') continue
+      const value = this.walletFile.walletValue(wb, ym)
       const row = walletList.createDiv('pw-asset-wallet-row')
       const left = row.createDiv('pw-wallet-left')
       left.createEl('span', {
@@ -95,9 +100,15 @@ export class AssetView extends ItemView {
       left.createEl('span', { text: wallet.name, cls: 'pw-wallet-name' })
 
       row.createEl('span', {
-        text: formatMoney(Math.abs(balance), currency, config),
-        cls: 'pw-wallet-balance' + (balance < 0 ? ' is-negative' : ''),
+        text: formatMoney(Math.abs(value), currency, config),
+        cls: 'pw-wallet-balance' + (value < 0 ? ' is-negative' : ''),
       })
+
+      if (wallet.type === 'investment') {
+        row.addClass('is-link')
+        row.dataset['action'] = 'open-investments'
+        row.addEventListener('click', () => { void this.openInvestments() })
+      }
     }
 
     const netRow = walletCard.createDiv('pw-asset-wallet-row pw-net-asset-row')
@@ -115,10 +126,10 @@ export class AssetView extends ItemView {
 
     // Asset allocation pie (≥2 positive-balance accounts), compared in the base
     const assetMap = new Map<string, number>()
-    for (const { wallet, balance, currency } of walletBalances) {
-      if (wallet.status === 'archived') continue
-      const converted = toBase(balance, currency, config, currentYearMonth())
-      if (converted > 0) assetMap.set(wallet.name, converted)
+    for (const wb of walletBalances) {
+      if (wb.wallet.status === 'archived') continue
+      const converted = toBase(this.walletFile.walletValue(wb, ym), wb.currency, config, ym)
+      if (converted > 0) assetMap.set(wb.wallet.name, converted)
     }
     if (assetMap.size >= 2) {
       const assetCard = renderCard(leftCol, { title: t('dash.assetAllocation') })
@@ -154,5 +165,11 @@ export class AssetView extends ItemView {
     const netChartWrap = netCard.createDiv('pw-chart-wrap')
     this.charts.push(drawNetChart(netChartWrap, data, dp, baseSymbol))
     contentEl.scrollTop = savedScroll
+  }
+
+  private async openInvestments() {
+    const leaf = this.app.workspace.getLeavesOfType(INVESTMENT_VIEW_TYPE)[0] ?? this.app.workspace.getLeaf('tab')
+    await leaf.setViewState({ type: INVESTMENT_VIEW_TYPE, active: true })
+    void this.app.workspace.revealLeaf(leaf)
   }
 }

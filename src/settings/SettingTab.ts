@@ -245,7 +245,8 @@ export class PennyWalletSettingTab extends PluginSettingTab {
   ): HTMLElement {
     const config = this.walletFile.getConfig()
     const wb = walletBalances.find(b => b.wallet.name === wallet.name)
-    const currentBalance = wb?.balance ?? wallet.initialBalance
+    // An investment account reads at its total worth: cash plus holdings.
+    const currentBalance = wb ? this.walletFile.walletValue(wb, currentYearMonth()) : wallet.initialBalance
     const code = walletCurrency(wallet, config)
     const displayBalance = formatMoney(currentBalance, code, config)
 
@@ -262,6 +263,12 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     info.createSpan({ text: t(`label.walletType.${wallet.type}`), cls: `pw-wallet-badge pw-badge-${wallet.type}` })
     // ISO codes are open-ended, so this is a plain string rather than a t() key
     info.createSpan({ text: code, cls: 'pw-wallet-badge pw-badge-currency' })
+    if (wallet.type === 'investment' && wb?.holdings?.size) {
+      info.createSpan({
+        text: tn('invest.holdingCount', { count: String(wb.holdings.size) }),
+        cls: 'pw-wallet-row-desc',
+      })
+    }
 
     row.createSpan({ text: displayBalance, cls: `pw-wallet-row-balance${currentBalance < 0 ? ' is-debt' : ''}` })
 
@@ -272,6 +279,11 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     editBtn.addEventListener('click', () => {
       new WalletEditModal(this.app, wallet, async (updated) => {
         const scrollTop = this.getSettingsScrollTop()
+        if (wallet.type === 'investment' && updated.name && updated.name !== wallet.name
+          && this.walletFile.ledgerNameTaken(updated.name, wallet.name)) {
+          new Notice(t('err.ledgerNameTaken'))
+          return
+        }
         const wallets = config.wallets.map(w => w.name === wallet.name ? { ...w, ...updated } : w)
         if (updated.name && updated.name !== wallet.name && config.defaultWallet === wallet.name) {
           this.walletFile.updateConfig({ wallets, defaultWallet: updated.name })
@@ -347,7 +359,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
     const typeField = formEl.createDiv('pw-add-wallet-field')
     typeField.createEl('label', { text: t('settings.walletType'), cls: 'pw-setting-input-subtitle' })
     const typeSelect = typeField.createEl('select', { cls: 'pw-add-wallet-input' })
-    const walletTypes: WalletType[] = ['cash', 'bank']
+    const walletTypes: WalletType[] = ['cash', 'bank', 'investment']
     for (const wt of walletTypes) {
       typeSelect.createEl('option', { value: wt, text: t(`label.walletType.${wt}`) })
     }
@@ -355,7 +367,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
 
     let currency = baseCurrency(this.walletFile.getConfig())
     const currencyField = formEl.createDiv('pw-add-wallet-field')
-    currencyField.createEl('label', { text: t('settings.walletCurrency'), cls: 'pw-setting-input-subtitle' })
+    const currencyLabel = currencyField.createEl('label', { text: t('settings.walletCurrency'), cls: 'pw-setting-input-subtitle' })
     const currencySelect = currencyField.createEl('select', { cls: 'pw-add-wallet-input' })
     for (const c of CURRENCIES) currencySelect.createEl('option', { value: c.code, text: `${c.code} - ${c.symbol}` })
     if (!CURRENCIES.some(c => c.code === currency)) currencySelect.createEl('option', { value: currency, text: currency })
@@ -370,7 +382,13 @@ export class PennyWalletSettingTab extends PluginSettingTab {
 
     const balanceHintEl = cardEl.createDiv('pw-balance-hint')
     balanceHintEl.textContent = t('settings.balanceHint')
-    typeSelect.addEventListener('change', () => { type = typeSelect.value as WalletType })
+    typeSelect.addEventListener('change', () => {
+      type = typeSelect.value as WalletType
+      // An investment account's currency is what its cash and trades settle in.
+      const investment = type === 'investment'
+      currencyLabel.textContent = investment ? t('settings.cashCurrency') : t('settings.walletCurrency')
+      balanceHintEl.textContent = investment ? t('settings.investmentBalanceHint') : t('settings.balanceHint')
+    })
 
     return {
       getName: () => name,
@@ -405,6 +423,7 @@ export class PennyWalletSettingTab extends PluginSettingTab {
       const balance = form.getBalance()
       if (!name) { new Notice(t('err.walletNameEmpty')); return }
       if (config.wallets.some(w => w.name === name)) { new Notice(t('err.walletNameDuplicate')); return }
+      if (type === 'investment' && this.walletFile.ledgerNameTaken(name)) { new Notice(t('err.ledgerNameTaken')); return }
       const newWallet: Wallet = {
         name, type, initialBalance: balance, status: 'active', includeInNetAsset: true,
         currency: form.getCurrency(),

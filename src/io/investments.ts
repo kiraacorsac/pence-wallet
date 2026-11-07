@@ -1,4 +1,4 @@
-import type { Position, Trade, TradeAction } from '../types'
+import type { NegativeHoldingIssue, Position, Trade, TradeAction } from '../types'
 
 /**
  * Investment ledgers.
@@ -256,4 +256,28 @@ export function replayTrades(
     cash += tradeCashEffect(trade)
   }
   return { holdings, cash }
+}
+
+/** The first trade, per symbol, that sells or moves out more shares than were held. */
+export function detectNegativeHoldings(walletName: string, trades: Trade[]): NegativeHoldingIssue[] {
+  const holdings = new Map<string, Position>()
+  const flagged = new Map<string, NegativeHoldingIssue>()
+  for (const trade of [...trades].sort(tradeOrder)) {
+    applyTrade(holdings, trade)
+    const quantity = holdings.get(trade.symbol)?.quantity ?? 0
+    if (quantity < 0 && !flagged.has(trade.symbol)) {
+      flagged.set(trade.symbol, { type: 'negativeHolding', walletName, symbol: trade.symbol, date: trade.date, quantity })
+    }
+  }
+  return [...flagged.values()]
+}
+
+/** Shares of `symbol` held at the end of `date` ('YYYY-MM-DD'). */
+export function sharesHeldOn(trades: Trade[], symbol: string, date: string): number {
+  const holdings = new Map<string, Position>()
+  for (const trade of [...trades].sort(tradeOrder)) {
+    if (trade.date > date) break
+    if (trade.symbol === symbol) applyTrade(holdings, trade)
+  }
+  return holdings.get(symbol)?.quantity ?? 0
 }

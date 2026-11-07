@@ -2,13 +2,15 @@ import { Events, ItemView, Platform } from 'obsidian'
 import { WalletFile } from '../io/WalletFile'
 import { TransactionModal } from '../modal/TransactionModal'
 import { MobileTransactionModal } from '../modal/MobileTransactionModal'
+import { TradeModal } from '../modal/TradeModal'
 import { t } from '../i18n'
 import { stepMonth, isAfterCurrentMonth } from '../utils'
 import { DASHBOARD_VIEW_TYPE } from './DashboardView'
 import { ASSET_VIEW_TYPE } from './AssetView'
 import { DETAIL_VIEW_TYPE } from './DetailView'
+import { INVESTMENT_VIEW_TYPE } from './InvestmentView'
 
-export type ActiveView = 'dashboard' | 'asset' | 'detail'
+export type ActiveView = 'dashboard' | 'asset' | 'detail' | 'investments'
 
 export type SharedHeaderOptions = {
   view: ItemView
@@ -50,6 +52,11 @@ export function renderSharedHeader(container: HTMLElement, opts: SharedHeaderOpt
     { id: 'asset',     label: t('ui.asset'),    targetType: ASSET_VIEW_TYPE },
     { id: 'detail',    label: t('ui.detail'),   targetType: DETAIL_VIEW_TYPE },
   ]
+  // Only a vault that has an investment account is shown the view for one.
+  const hasInvestments = opts.walletFile.getConfig().wallets.some(w => w.type === 'investment' && w.status === 'active')
+  if (hasInvestments || opts.activeView === 'investments') {
+    tabs.push({ id: 'investments', label: t('ui.investments'), targetType: INVESTMENT_VIEW_TYPE })
+  }
   for (const tab of tabs) {
     const isActive = opts.activeView === tab.id
     const btn = tabsCell.createEl('button', {
@@ -64,11 +71,18 @@ export function renderSharedHeader(container: HTMLElement, opts: SharedHeaderOpt
   }
 
   const actionsCell = root.createDiv('pw-shared-header-actions')
+  const addsTrade = opts.activeView === 'investments' && hasInvestments
   const addBtn = actionsCell.createEl('button', {
-    text: '+ ' + t('ui.addTransaction'),
+    text: '+ ' + (addsTrade ? t('ui.addTrade') : t('ui.addTransaction')),
     cls: 'pw-action-btn pw-shared-header-add',
   })
   addBtn.addEventListener('click', () => {
+    if (addsTrade) {
+      new TradeModal(opts.view.app, opts.walletFile, {}, null,
+        () => (opts.view.app.workspace as Events).trigger('penny-wallet:refresh'),
+      ).open()
+      return
+    }
     addBtn.disabled = true
     const ModalClass = Platform.isMobile ? MobileTransactionModal : TransactionModal
     new ModalClass(opts.view.app, opts.walletFile, {}, null, null,

@@ -9,22 +9,19 @@ import {
   SettingsStore,
   DEFAULT_CONFIG,
 } from '../types'
-import type {
-  Wallet, FrontmatterIssue, OrphanedWalletIssue, NegativeHoldingIssue, Position, Trade, ValidationIssue,
-} from '../types'
+import type { Wallet, FrontmatterIssue, OrphanedWalletIssue, Trade, ValidationIssue } from '../types'
 import { seedDefaultCategories } from '../i18n'
 import { baseCurrency, holdingsValue, moneyMapsEqual, positionWorth, toBase, walletCurrency } from '../money'
 import { currentYearMonth } from '../utils'
 import {
   INVESTMENTS_FOLDER,
-  applyTrade,
   buildInvestmentContent,
+  detectNegativeHoldings,
   findTradeIndex,
   investmentFileName,
   parseInvestmentFile,
   parseLedgerMeta,
   replayTrades,
-  tradeOrder,
 } from './investments'
 
 const TABLE_HEADER = `| Date | Type | Wallet | From | To | Category | Note | Tags | Amount | AmountTo | CreatedAt |
@@ -208,20 +205,6 @@ export function detectOrphanedWallets(
     transactionCount: count,
     yearMonths: [...months].sort(),
   }))
-}
-
-/** The first trade, per symbol, that sells or moves out more shares than were held. */
-export function detectNegativeHoldings(walletName: string, trades: Trade[]): NegativeHoldingIssue[] {
-  const holdings = new Map<string, Position>()
-  const flagged = new Map<string, NegativeHoldingIssue>()
-  for (const trade of [...trades].sort(tradeOrder)) {
-    applyTrade(holdings, trade)
-    const quantity = holdings.get(trade.symbol)?.quantity ?? 0
-    if (quantity < 0 && !flagged.has(trade.symbol)) {
-      flagged.set(trade.symbol, { type: 'negativeHolding', walletName, symbol: trade.symbol, date: trade.date, quantity })
-    }
-  }
-  return [...flagged.values()]
 }
 
 // ─── WalletFile class ─────────────────────────────────────────────────────────

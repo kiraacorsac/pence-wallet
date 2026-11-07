@@ -65,7 +65,11 @@ export class WalletEditModal extends Modal {
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur() })
 
     const currencyRow = formEl.createDiv('pw-wallet-edit-field')
-    currencyRow.createEl('label', { text: t('settings.walletCurrency'), cls: 'pw-wallet-edit-label' })
+    const investment = this.wallet.type === 'investment'
+    currencyRow.createEl('label', {
+      text: investment ? t('settings.cashCurrency') : t('settings.walletCurrency'),
+      cls: 'pw-wallet-edit-label',
+    })
     const currencySelect = currencyRow.createEl('select', { cls: 'pw-field-input' })
     for (const c of CURRENCIES) currencySelect.createEl('option', { value: c.code, text: `${c.code} - ${c.symbol}` })
     if (!CURRENCIES.some(c => c.code === this.currency)) {
@@ -83,7 +87,7 @@ export class WalletEditModal extends Modal {
     balInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') balInput.blur() })
 
     formEl.createEl('p', {
-      text: t('settings.balanceHint'),
+      text: investment ? t('settings.investmentBalanceHint') : t('settings.balanceHint'),
       cls: 'pw-balance-hint pw-wallet-edit-hint',
     })
 
