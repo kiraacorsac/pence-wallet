@@ -43,6 +43,7 @@ export default defineConfig({
               { text: 'Accounts', link: '/accounts' },
               { text: 'Transactions', link: '/transactions' },
               { text: 'Multiple Currencies', link: '/currencies' },
+              { text: 'Investments', link: '/investments' },
               { text: 'Tracking a Credit Card', link: '/credit-card-workflow' },
               { text: 'Views', link: '/views' },
               { text: 'Settings', link: '/settings' },

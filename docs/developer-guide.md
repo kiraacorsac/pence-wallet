@@ -22,15 +22,21 @@ penny-wallet/
 │   ├── i18n.ts                  ← translations (zh-TW, en)
 │   ├── utils.ts                 ← shared view helpers
 │   ├── io/
-│   │   └── WalletFile.ts        ← all file I/O and business logic
+│   │   ├── WalletFile.ts        ← all file I/O and business logic
+│   │   ├── investments.ts       ← investment ledger format and holdings replay (pure)
+│   │   ├── dailySync.ts         ← shared daily-download gate, retries and merge
+│   │   ├── rateSync.ts          ← exchange-rate download (open.er-api.com)
+│   │   └── priceSync.ts         ← price download (Twelve Data)
 │   ├── modal/
 │   │   ├── TransactionModal.ts        ← add/edit transaction form (desktop)
 │   │   ├── MobileTransactionModal.ts  ← add/edit transaction form (mobile)
+│   │   ├── TradeModal.ts              ← add/edit trade form (desktop and mobile)
 │   │   └── ConfirmModal.ts            ← shared confirmation dialog
 │   ├── view/
 │   │   ├── DashboardView.ts     ← Finance Overview
 │   │   ├── DetailView.ts        ← Transactions list
-│   │   └── AssetView.ts         ← Assets view
+│   │   ├── AssetView.ts         ← Assets view
+│   │   └── InvestmentView.ts    ← Investments view
 │   └── settings/
 │       └── SettingTab.ts        ← plugin settings UI
 ├── scripts/
@@ -209,6 +215,18 @@ Before opening a PR, verify the following:
 - [ ] Exchange rates: a hand-entered rate for the current month survives an update
 - [ ] Exchange rates: editing an auto rate clears its Auto mark
 - [ ] Exchange rates: with the toggle off, reloading the plugin makes no request
+
+**Investments**
+- [ ] Add an Investment account; the currency field reads "Cash currency"
+- [ ] Transfer cash into it from a bank account (cross-currency if they differ)
+- [ ] Buy, sell and adjust trades save to `PennyWallet/Investments/<account>.md`
+- [ ] A sell larger than the holding on that date is refused
+- [ ] Investments view: summary, holdings and trade list match the ledger; tap a trade to edit / delete
+- [ ] Assets view: the account shows its total worth and opens the Investments view
+- [ ] Prices: a hand-entered price values the holding; an unpriced one shows "at cost"
+- [ ] Prices: with a Twelve Data key in the keychain, "Update now" fills the current month and marks rows Auto
+- [ ] Prices: with the toggle off, reloading the plugin makes no request
+- [ ] Renaming an investment account renames its ledger file
 
 ---
 

@@ -10,6 +10,7 @@ A personal finance tracker plugin for [Obsidian](https://obsidian.md). Log expen
 - **Transactions** — multi-select type and wallet filters, category and account dropdowns, date range, keyword search, and sticky subtotals
 - **Assets** — 3 / 6 / 12-month range selector, account balances, net asset trend, savings rate, and asset allocation pie
 - **Cash and bank accounts** — any account can hold a negative balance, so a credit card is just an account you owe money on
+- **Investment accounts** — hold stocks and ETFs (NVDA, SPY, QQQ…) in their own trade ledger, valued at dated prices with an optional daily download from Twelve Data
 - **Custom categories** — add your own expense and income categories
 - **Mobile-friendly entry** — touch-optimized transaction form with bottom-sheet pickers and an on-screen calculator
 - **iOS Shortcuts support** — add transactions via URI without opening Obsidian
@@ -111,7 +112,9 @@ Transactions are stored as Markdown tables, one file per month:
 ├── .obsidian/plugins/penny-wallet/data.json   ← config (accounts, categories, settings)
 └── PennyWallet/
     ├── 2026-04.md
-    └── 2026-03.md
+    ├── 2026-03.md
+    └── Investments/
+        └── IBKR.md      ← trades of an investment account
 ```
 
 Each month file has YAML frontmatter (`income`, `expense`, `netAsset`) for fast loading, followed by a plain Markdown table of transactions:

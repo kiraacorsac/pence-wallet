@@ -1,6 +1,6 @@
 # Views
 
-PennyWallet has three views. The **Finance Overview** can be opened from the ribbon icon; the other two views are accessible from the header buttons inside Finance Overview, or via the Command Palette.
+PennyWallet has three views, and a fourth — **Investments** — once you add an investment account. The **Finance Overview** can be opened from the ribbon icon; the other two views are accessible from the header buttons inside Finance Overview, or via the Command Palette.
 
 ---
 
@@ -111,3 +111,26 @@ A line chart showing your net asset over the selected range. Hover near a data p
 ### Asset Allocation Pie
 
 Appears when you have two or more active cash/bank accounts with positive balances. Shows the distribution of liquid assets across those accounts.
+
+An investment account is listed at its total worth — cash plus holdings — and selecting
+it opens the Investments view. It counts toward the allocation pie at that worth too.
+
+---
+
+## Investments
+
+Appears in the view header once you have an investment account. Open it from the
+**Investments** tab, or run **PennyWallet: Open investments** from the Command Palette.
+The header's add button reads **+ Add trade** here.
+
+For each active investment account:
+
+| Section | Shows |
+|---------|-------|
+| Summary | Total value, cash, holdings value, and unrealized gain, in the account's currency |
+| Holdings | Per symbol: shares, price and the month it is from, value, average cost, gain and its percentage |
+| Trades | Every trade, newest first; select one to edit or delete it |
+
+A holding with no price yet shows `—` for its price and gain, and is valued at cost.
+On a narrow screen the cost column is hidden. See [Investments](/investments) for how
+trades and prices work.

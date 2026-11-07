@@ -2,6 +2,25 @@
 
 All notable changes to PennyWallet will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **investment accounts**, a third account type that holds stocks and ETFs (NVDA, SPY, QQQ…) in any number of tickers alongside a cash balance. Deposits, withdrawals, dividends and fees stay ordinary month-file transactions; buys, sells and share adjustments are **trades**, kept in the account's own ledger at `PennyWallet/Investments/<account>.md`
+- an **Investments** view, shown once such an account exists: total value, cash, holdings and unrealized gain per account, a holdings table (shares, price, value, average cost, gain), and the trade history, tap to edit. **Add trade** and **Open investments** are in the Command Palette too
+- the trade form shows the price per share the amount implies and the shares held on that date, and refuses a sell the holding cannot cover, then or after a later trade. **Adjust** records a split, or shares moved between brokers, without moving cash
+- holdings are valued at a **dated price**, in the currency the security trades in, then converted by the exchange-rate table. A security with no price yet is valued at cost, so buying never reads as a loss. Settings gains a **Prices** section, laid out like the exchange rates
+- prices can be **downloaded daily from Twelve Data**, off by default, with your own free API key. It follows the rate download's rules: the current month only, and a price you typed always wins. The key is kept in Obsidian's keychain (1.11.4 or later), never in the synced settings file
+- **Validate data** reports ledgers that no account owns, and can recreate their account archived, as well as holdings that a ledger takes below zero
+
+### Changed
+- net assets, the net-asset trend, the asset allocation pie and the per-currency breakdown include investment holdings, each month valued with the shares held and the price in force then
+- a currency used only to quote a security, such as USD for NVDA in a GBP vault, now appears under Exchange Rates and is downloaded with the rest
+- with price downloads on, PennyWallet makes one more kind of request: an HTTPS GET to api.twelvedata.com carrying the ticker symbols you hold and your key, the key in a header. With it off, nothing changes
+
+### Internal
+- the daily gate, retries, backoff and current-month merge shared by both downloads now live in `src/io/dailySync.ts`
+- the demo vault gains an IBKR account funded each month, with a year of trades, quarterly dividends and seeded prices; it uses its own random stream, so every other generated figure is unchanged
+
 ## [0.0.20] - 2026-11-07
 
 ### Changed

@@ -98,6 +98,16 @@ most once a day. No accounts, no amounts, no note text, no identifier of any
 kind. If the request fails it is retried a few times and then left until later —
 nothing is written unless a download actually succeeds.
 
+Price downloads for [investment accounts](/investments#downloading-prices) are a
+separate opt-in with their own toggle, since they send more: the ticker symbols
+you hold and your API key.
+
+### Securities quoted in another currency
+
+A security's price is stored in the currency it trades in, and converted with
+this table. A currency used only to quote a security — USD for NVDA in a GBP
+vault — still appears under Exchange Rates and is downloaded with the rest.
+
 ---
 
 ## Transfers between currencies

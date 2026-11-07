@@ -80,6 +80,29 @@ overwritten, and editing an auto rate by hand converts it to a manual one. See
 
 ---
 
+## Prices
+
+Appears once you have an investment account. Lists every security you hold, or have
+priced, with its dated prices — one list per symbol, like the exchange rates, plus the
+**currency** each price is quoted in. A held security with no price yet is valued at
+cost and called out here.
+
+### Twelve Data API Key
+
+The keychain entry holding your free [Twelve Data](https://twelvedata.com/pricing) key.
+The key stays in Obsidian's keychain; only the entry's name is saved in PennyWallet's
+settings. Needs Obsidian 1.11.4 or later — on older versions this is replaced by a note,
+and prices are entered by hand.
+
+### Download Prices Automatically
+
+Off by default. Turned on, it fetches prices once a day and updates the **current
+month's** price for each security you hold. It sends the ticker symbols and your key,
+nothing else. **Update now** fetches on demand and names any symbol the provider could
+not price. See [Investments](/investments#downloading-prices) for the full behaviour.
+
+---
+
 ## Active Accounts
 
 Lists all accounts with status `active`.
@@ -114,8 +137,8 @@ Lists archived accounts. Each row has:
 
 Fields:
 - **Name** — unique, cannot be empty
-- **Type** — Cash / Bank
-- **Currency** — what the account is denominated in; defaults to your base currency
+- **Type** — Cash / Bank / Investment
+- **Currency** — what the account is denominated in; defaults to your base currency. For an investment account this is its **cash currency**, what its trades settle in
 - **Initial Balance** — current balance, in that account's currency. Use a negative number for an account you owe money on, such as a credit card
 
 Click **Add Account** or press **Enter** in any field to confirm.

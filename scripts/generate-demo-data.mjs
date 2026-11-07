@@ -16,6 +16,7 @@ const CASH_WALLET = 'Default Wallet'
 const PRIMARY_BANK = 'HSBC Premier'
 const SECONDARY_BANK = 'Citibank'
 const FOREIGN_BANK = 'Chase USD'
+const BROKERAGE = 'IBKR'
 const PRIMARY_CARD = 'Visa Platinum'
 const SECONDARY_CARD = 'Mastercard World'
 
@@ -63,6 +64,16 @@ const wallets = [
     name: FOREIGN_BANK,
     type: 'bank',
     initialBalance: 1500,
+    status: 'active',
+    includeInNetAsset: true,
+    currency: 'USD',
+  },
+  // Holds shares in its own ledger, PennyWallet/Investments/IBKR.md; its cash
+  // moves through the month files like any other account's.
+  {
+    name: BROKERAGE,
+    type: 'investment',
+    initialBalance: 1000,
     status: 'active',
     includeInNetAsset: true,
     currency: 'USD',
@@ -132,6 +143,8 @@ const config = {
   decimalPlaces: 'auto',
   baseCurrency: BASE_CURRENCY,
   rates,
+  // Filled month by month as the investment history is generated.
+  prices: [],
   tags: fixedTags,
   options: {
     categories: {
@@ -575,6 +588,101 @@ function generateMonthTransactions(monthDate, state) {
   return ascending
 }
 
+// ── Investments ─────────────────────────────────────────────────────────────
+//
+// Drawn from a generator of their own, so adding them leaves every number the
+// rest of the demo produces exactly as it was.
+
+const investRandom = mulberry32(seed + 1)
+const investInt = (min, max) => Math.floor(investRandom() * (max - min + 1)) + min
+const round2 = n => Math.round(n * 100) / 100
+const round4 = n => Math.round(n * 10000) / 10000
+
+const investmentsDir = path.join(dataDir, 'Investments')
+const startPrices = { NVDA: 140, SPY: 560, QQQ: 480, PFE: 26, TDOC: 9.5 }
+const ROTATION = [['NVDA', 2], ['QQQ', 1], ['TDOC', 10], ['NVDA', 1]]
+
+function tradeCreatedAt(date) {
+  const at = new Date(date)
+  at.setHours(15, investInt(30, 59), investInt(0, 59), investInt(0, 999))
+  return at.toISOString()
+}
+
+function isoDate(date) {
+  return `${formatMonth(date)}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+/** One month at the brokerage: a deposit, the trades it pays for, a dividend each quarter. */
+function generateInvestmentMonth(monthDate, monthIndexInRun, invest) {
+  const year = monthDate.getFullYear()
+  const monthIndex = monthDate.getMonth()
+  const yearMonth = formatMonth(monthDate)
+  const transactions = []
+
+  // A drifting random walk, entered by hand once a month.
+  for (const symbol of Object.keys(invest.prices)) {
+    invest.prices[symbol] = round2(invest.prices[symbol] * (1 + (investRandom() - 0.45) * 0.12))
+    config.prices.push({ symbol, effectiveFrom: yearMonth, price: invest.prices[symbol], currency: 'USD' })
+  }
+
+  // Funded from the two TWD banks in turn, converted to USD on the way in.
+  const depositDate = createDate(year, monthIndex, investInt(3, 6))
+  const sent = investInt(16000, 20000)
+  transactions.push({
+    date: depositDate, type: 'transfer', fromWallet: monthIndexInRun % 2 === 0 ? PRIMARY_BANK : SECONDARY_BANK, toWallet: BROKERAGE,
+    category: 'investment_trade', note: 'Brokerage deposit',
+    amount: sent, amountTo: round2(sent / usdRate(year, monthIndex) * 0.996),
+    createdAt: tradeCreatedAt(depositDate),
+  })
+
+  const trade = (day, action, symbol, quantity, note = '', amount = round2(quantity * invest.prices[symbol]), fee = 1) => {
+    const date = createDate(year, monthIndex, day)
+    invest.trades.push({ date: isoDate(date), action, symbol, quantity, amount, fee, note, createdAt: tradeCreatedAt(date) })
+    invest.held[symbol] = (invest.held[symbol] ?? 0) + (action === 'sell' ? -quantity : quantity)
+  }
+
+  if (monthIndexInRun === 0) {
+    // Shares that arrived from another broker: no cash moves, the basis comes with them.
+    const date = createDate(year, monthIndex, 2)
+    invest.trades.push({ date: isoDate(date), action: 'adjust', symbol: 'PFE', quantity: 20, amount: 600, note: 'Moved from Firstrade', createdAt: tradeCreatedAt(date) })
+    invest.held.PFE = 20
+  }
+
+  trade(investInt(8, 12), 'buy', 'SPY', round4(250 / invest.prices.SPY), 'Monthly SPY')
+  const [symbol, quantity] = ROTATION[monthIndexInRun % ROTATION.length]
+  trade(investInt(14, 20), 'buy', symbol, quantity)
+
+  if (monthIndexInRun === 8 && invest.held.TDOC > 0) {
+    trade(investInt(21, 25), 'sell', 'TDOC', invest.held.TDOC, 'Cut losses')
+  }
+
+  if (monthIndex % 3 === 2 && invest.held.SPY > 0) {
+    const date = createDate(year, monthIndex, 28)
+    transactions.push({
+      date, type: 'income', wallet: BROKERAGE, category: 'dividend', note: 'SPY dividend',
+      amount: round2(invest.held.SPY * 1.75), createdAt: tradeCreatedAt(date),
+    })
+  }
+
+  return transactions
+}
+
+function formatTradeRow(trade) {
+  return `| ${trade.date} | ${trade.action} | ${trade.symbol} | ${trade.quantity} | ${trade.amount ?? '-'} | ${trade.fee ?? '-'} | ${trade.note || '-'} | ${trade.createdAt} |`
+}
+
+function buildLedgerContent(account, currency, trades, held) {
+  const holdings = Object.entries(held)
+    .filter(([, quantity]) => Math.abs(quantity) > 1e-9)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([symbol, quantity]) => `holdings.${symbol}: ${Number(quantity.toFixed(8))}\n`)
+    .join('')
+  const sorted = [...trades].sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))
+  return `---\naccount: ${JSON.stringify(account)}\ncurrency: ${currency}\n${holdings}---\n`
+    + `\n## ${account}\n\n| Date | Action | Symbol | Quantity | Amount | Fee | Note | CreatedAt |\n|------|--------|--------|----------|--------|-----|------|-----------|\n`
+    + sorted.map(formatTradeRow).join('\n') + '\n'
+}
+
 async function clearExistingMonthFiles() {
   const entries = await fs.readdir(dataDir, { withFileTypes: true })
   await Promise.all(entries
@@ -595,7 +703,8 @@ async function main() {
   await fs.mkdir(pluginDir, { recursive: true })
   await removeLegacyDataDirs()
   await clearExistingMonthFiles()
-  await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
+  await fs.rm(investmentsDir, { recursive: true, force: true })
+  await fs.mkdir(investmentsDir, { recursive: true })
 
   const state = {
     balances: Object.fromEntries(wallets.map(wallet => [wallet.name, wallet.initialBalance])),
@@ -610,20 +719,31 @@ async function main() {
     months.push(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - offset, 1))
   }
 
-  for (const monthDate of months) {
+  const invest = { prices: { ...startPrices }, trades: [], held: {} }
+
+  for (const [i, monthDate] of months.entries()) {
     const yearMonth = formatMonth(monthDate)
-    const transactions = generateMonthTransactions(monthDate, state)
+    const investing = generateInvestmentMonth(monthDate, i, invest)
+    for (const tx of investing) applyTransaction(state, tx)
+    const transactions = [...generateMonthTransactions(monthDate, state), ...investing]
+      .sort((left, right) => (left.date - right.date) || left.createdAt.localeCompare(right.createdAt))
     const content = buildMonthContent(yearMonth, transactions)
     await fs.writeFile(path.join(dataDir, `${yearMonth}.md`), content, 'utf8')
   }
+
+  await fs.writeFile(path.join(investmentsDir, `${BROKERAGE}.md`), buildLedgerContent(BROKERAGE, 'USD', invest.trades, invest.held), 'utf8')
+  // Written last: the price table is filled in as the months are generated.
+  await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
 
   const summary = wallets.map(wallet => {
     const balance = Math.round(state.balances[wallet.name])
     return `${wallet.name}: ${balance}`
   }).join(', ')
 
+  const held = Object.entries(invest.held).filter(([, q]) => q > 0).map(([sym, q]) => `${sym} ${Number(q.toFixed(4))}`).join(', ')
   console.log(`Generated 12 months of demo data in ${dataDir}`)
   console.log(`Wallet snapshot: ${summary}`)
+  console.log(`${BROKERAGE}: ${invest.trades.length} trades, holding ${held}`)
 }
 
 main().catch(error => {

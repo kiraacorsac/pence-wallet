@@ -1,6 +1,6 @@
 # Accounts
 
-PennyWallet supports three account types. Each type behaves differently in balance calculations and net asset tracking.
+PennyWallet supports three account types: cash, bank, and investment. Cash and bank accounts hold one currency; an investment account also holds shares.
 
 ---
 
@@ -31,6 +31,25 @@ Represents a bank account, savings account, or e-wallet.
 
 ---
 
+### Investment
+
+Represents a brokerage account: a cash balance in one currency, plus shares in any
+number of tickers.
+
+- Deposits and withdrawals are ordinary **transfers**; dividends and fees are ordinary
+  income and expense — all in the month files
+- Buying, selling and share adjustments are **trades**, kept in the account's own
+  ledger file and managed from the **Investments** view
+- Included in net asset at its total worth: cash plus shares × price, converted to your
+  base currency
+
+**Example:** a US broker in USD with $200 cash, 10 NVDA at $186 and 2 SPY at $735 is worth
+`$3,530`, and that is what it contributes to net asset.
+
+See [Investments](/investments) for trades, prices, and the price download.
+
+---
+
 ### Accounts You Owe Money On
 
 There is no separate credit card type. A credit card is an ordinary account whose
@@ -53,6 +72,11 @@ what it contributes to net asset.
 **Settings → PennyWallet → Add Account**
 
 Fill in the name, type, currency, and initial balance, then click **Add Account** (or press Enter).
+
+For an **Investment** account the currency field reads **Cash currency** — what its cash
+and trades settle in — and the initial balance is the cash already in it. Its shares are
+added as trades afterwards. An account whose name would share a ledger file name with
+another investment account is refused.
 
 The **currency** defaults to your base currency. Set it to whatever the account is
 actually denominated in — every amount you record against the account is then in
@@ -80,14 +104,16 @@ To restore an archived account, go to **Settings → PennyWallet → Archived Ac
 
 ### Delete an account
 
-If an account has **no transactions**, it can be deleted permanently.
+If an account has **no transactions**, it can be deleted permanently. For an investment
+account, trades count as history too: one with trades is archived instead.
 
 ---
 
 ## Net Asset Calculation
 
 Net Asset = sum of every included account balance, each converted to your **base
-currency** first (negative balances subtract).
+currency** first (negative balances subtract). An investment account contributes its cash
+plus its holdings at the month's prices.
 
 Archived accounts are included if **Include in Net Assets** is toggled on.
 

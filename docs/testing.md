@@ -40,9 +40,13 @@ penny-wallet/
 │   ├── unit/
 │   │   ├── parsing.test.ts    ← parseRow, formatRow, parseFrontmatter, buildMonthContent
 │   │   ├── business.test.ts   ← computeWalletBalances, computeNetAsset, computeSummary
+│   │   ├── investments.test.ts ← trade rows, ledger files, average-cost replay
+│   │   ├── tradeState.test.ts ← trade form validation, oversell checks
+│   │   ├── priceSync.test.ts  ← quote parsing, chunking, price merge, PriceSync
 │   │   └── utils.test.ts      ← formatAmount, stepMonth, dateToYearMonth, …
 │   └── integration/
 │       ├── walletFile.test.ts ← readMonth, writeTransaction, updateTransaction with mock vault
+│       ├── investments.test.ts ← ledger I/O, valuation, timeline, ledger validation
 │       └── config.test.ts     ← loadConfig, saveConfig
 └── vitest.config.ts
 ```
@@ -285,6 +289,18 @@ Plugin config does not live in the vault, so it has its own mock in `tests/helpe
 | `walletHasTransactions` | matches wallet, fromWallet, toWallet; returns false when unused |
 | `getMonthSummaries` | returns summary for months with files; skips missing months |
 | `getLocaleCashName` | zh locale → Chinese wallet name |
+
+### Investment ledgers (`tests/integration/investments.test.ts`)
+
+| Scenario | Expected |
+|----------|---------|
+| `writeTrade` | creates `Investments/<account>.md`, never a month file; stamps `createdAt` |
+| `updateTrade` same account / other account | replaces in place / moves between ledgers |
+| `renameWalletInTransactions` on an investment account | ledger moves and restates its owner; never overwrites another ledger |
+| `calculateWalletData` | cash = month-file flows + trade cash; `holdings` at average cost; trade-only account counts as used |
+| `computeNetAsset` / `netAssetByCurrency` | holdings at the dated price, through the rate table; unpriced at cost; parts add up to the total |
+| `getNetAssetTimeline` | each month valued with that month's holdings and price, including months with trades but no month file |
+| `validateAllData` | flags orphaned ledgers (repairable when named) and negative holdings |
 
 ---
 

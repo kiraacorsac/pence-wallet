@@ -27,10 +27,9 @@ describe('generate-demo-data', () => {
     expect(config.tags).toEqual(['daily', 'essential', 'family', 'fun', 'health', 'invest', 'online', 'outing', 'travel', 'work'])
 
     const dataDir = path.join(vaultRoot, 'PennyWallet')
-    const monthFiles = await readdir(dataDir)
+    const monthFiles = (await readdir(dataDir)).filter(fileName => /^\d{4}-\d{2}\.md$/.test(fileName))
     const monthContent = (await Promise.all(
       monthFiles
-        .filter(fileName => fileName.endsWith('.md'))
         .map(fileName => readFile(path.join(dataDir, fileName), 'utf8')),
     )).join('\n')
 
@@ -42,6 +41,19 @@ describe('generate-demo-data', () => {
     expect(config.rates.length).toBeGreaterThan(1)
     expect(monthContent).toMatch(/income\.TWD: \d+/)
     expect(monthContent).toMatch(/expense\.USD: [\d.]+/)
+
+    // An investment account: its trades in a ledger of their own, its cash in the month files.
+    const brokerage = config.wallets.find((w: { type: string }) => w.type === 'investment')
+    expect(brokerage).toMatchObject({ name: 'IBKR', currency: 'USD' })
+    const ledger = await readFile(path.join(dataDir, 'Investments', 'IBKR.md'), 'utf8')
+    expect(ledger).toContain('| Date | Action | Symbol | Quantity | Amount | Fee | Note | CreatedAt |')
+    expect(ledger).toMatch(/\| adjust \| PFE \|/)
+    expect(ledger).toMatch(/\| sell \| TDOC \|/)
+    expect(monthContent).toContain('| IBKR | ')
+    // A dated price for every held symbol in every generated month.
+    const pricedMonths = new Set(config.prices.map((p: { effectiveFrom: string }) => p.effectiveFrom))
+    expect(pricedMonths.size).toBe(monthFiles.length)
+    expect(new Set(config.prices.map((p: { symbol: string }) => p.symbol))).toEqual(new Set(['NVDA', 'PFE', 'QQQ', 'SPY', 'TDOC']))
 
     const tagSet = new Set(config.tags)
     const tagCells = monthContent

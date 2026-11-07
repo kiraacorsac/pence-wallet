@@ -85,6 +85,19 @@ Both numbers are stored, so neither balance depends on an exchange rate you migh
 
 ---
 
+### Can I track stocks and ETFs?
+
+Yes — add an account with the **Investment** type. It holds shares in any number of
+tickers alongside a cash balance, and is valued at shares × price in net assets. Fund
+it with an ordinary transfer, and record buys and sells as trades in the
+**Investments** view. See [Investments](/investments).
+
+### Why does a stock show its cost instead of its value?
+
+It has no price yet. Until one is entered in Settings → Prices, or downloaded, a holding
+is valued at what it cost, so the purchase does not read as a loss. Symbols the free
+Twelve Data plan does not cover (most non-US listings) need a price entered by hand.
+
 ### Where is my data stored? Is it synced?
 
 All data is in your Obsidian vault as plain `.md` and `.json` files — wherever your vault lives (local folder, iCloud, Obsidian Sync, Dropbox, etc.). PennyWallet never sends your accounts, amounts or notes anywhere.

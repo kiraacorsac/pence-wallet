@@ -12,7 +12,9 @@ PennyWallet stores all data as plain text files in your vault. No proprietary da
 └── PennyWallet/             ← monthly transaction files (folder name configurable)
     ├── 2026-04.md
     ├── 2026-03.md
-    └── 2026-02.md
+    ├── 2026-02.md
+    └── Investments/         ← one trade ledger per investment account
+        └── IBKR.md
 ```
 
 ---
@@ -78,6 +80,63 @@ changes.
 
 ---
 
+## Investment Ledgers
+
+Each [investment account](/investments) keeps its trades in
+`<folder>/Investments/<account>.md`, one file for its whole history. The file name is
+the account name with characters a file name or link cannot hold (`\ / : * ? " < > | # ^ [ ]`)
+replaced by `-`.
+
+### Example: `Investments/IBKR.md`
+
+```markdown
+---
+account: "IBKR"
+currency: USD
+holdings.NVDA: 8
+holdings.SPY: 3.5
+---
+
+## IBKR
+
+| Date       | Action | Symbol | Quantity | Amount  | Fee | Note          | CreatedAt                |
+|------------|--------|--------|----------|---------|-----|---------------|--------------------------|
+| 2026-10-02 | buy    | NVDA   | 10       | 1812.40 | 1   | -             | 2026-10-02T14:31:00.000Z |
+| 2026-10-15 | adjust | SPY    | 3.5      | 2100    | -   | from Vanguard | 2026-10-15T09:00:00.000Z |
+| 2026-11-03 | sell   | NVDA   | 2        | 401.10  | 1   | trim          | 2026-11-03T15:02:00.000Z |
+```
+
+### Column Reference
+
+| Column | buy / sell | adjust |
+|--------|-----------|--------|
+| Date | `YYYY-MM-DD` — the year is kept, since one file spans many months | same |
+| Action | `buy` / `sell` | `adjust` |
+| Symbol | ticker, upper-case, as the price provider knows it | same |
+| Quantity | shares, positive; fractional allowed | shares, signed: positive moves in, negative moves out |
+| Amount | gross cash, in the account's currency | cost basis added, or `-` (e.g. a split) |
+| Fee | in the account's currency, or `-` | `-` |
+| Note | optional text | optional text |
+| CreatedAt | ISO 8601 UTC timestamp | ISO 8601 UTC timestamp |
+
+A buy spends `Amount + Fee` of the account's cash and a sell returns `Amount − Fee`; an
+adjust moves no cash. The account's cash is its initial balance, plus its month-file
+transactions, plus those effects.
+
+### Frontmatter
+
+`account` names the owning account (quoted, so any name survives YAML) and `currency`
+its cash currency. The `holdings.<SYMBOL>` keys list current share counts for Dataview
+and for reading the file. PennyWallet writes them on every change but **never reads them
+back** — it always replays the rows — so a stale or hand-edited value cannot drift from
+the truth.
+
+A ledger no account owns, or one whose rows sell more shares than were held, is reported
+by **Validate data**. An orphaned ledger can be fixed by recreating its account,
+archived, when its frontmatter names one.
+
+---
+
 ## Config File: `data.json`
 
 Stored where Obsidian keeps every plugin's settings —
@@ -107,6 +166,14 @@ Stored where Obsidian keeps every plugin's settings —
       "status": "active",
       "includeInNetAsset": true,
       "currency": "USD"
+    },
+    {
+      "name": "IBKR",
+      "type": "investment",
+      "initialBalance": 0,
+      "status": "active",
+      "includeInNetAsset": true,
+      "currency": "USD"
     }
   ],
   "defaultWallet": "Cash",
@@ -118,6 +185,10 @@ Stored where Obsidian keeps every plugin's settings —
     { "code": "USD", "effectiveFrom": "2026-04", "rate": 32.4 },
     { "code": "USD", "effectiveFrom": "2026-09", "rate": 32.6, "source": "auto" }
   ],
+  "prices": [
+    { "symbol": "NVDA", "effectiveFrom": "2026-10", "price": 202.06, "currency": "USD" },
+    { "symbol": "NVDA", "effectiveFrom": "2026-11", "price": 186.64, "currency": "USD", "source": "auto" }
+  ],
   "options": {
     "categories": {
       "expense": ["Food", "Clothing", "Housing", "Transport", "Education", "Entertainment", "Shopping", "Medical", "Cash Expense", "Insurance", "Fees", "Tax", "Coffee"],
@@ -128,7 +199,10 @@ Stored where Obsidian keeps every plugin's settings —
   "tags": [],
   "autoValidateOnLoad": true,
   "autoFetchRates": false,
-  "lastRateFetch": "2026-09-13T08:14:02.431Z"
+  "lastRateFetch": "2026-09-13T08:14:02.431Z",
+  "autoFetchPrices": true,
+  "lastPriceFetch": "2026-11-07T09:02:11.187Z",
+  "priceApiKeySecret": "twelve-data-api-key"
 }
 ```
 
@@ -138,6 +212,12 @@ the downloader from overwriting your own figures. `autoFetchRates` is the opt-in
 toggle, and `lastRateFetch` records the last *successful* download — it syncs
 with the rest of the config, which is how a second device knows not to fetch
 again the same day. Both keys are absent in vaults written before 0.0.18.
+
+`prices` is the dated price table for securities, with the same `source: "auto"` rule;
+each point also records the `currency` the security trades in. `autoFetchPrices` and
+`lastPriceFetch` play the same roles for the price download. `priceApiKeySecret` is the
+*name* of the Obsidian keychain entry holding the Twelve Data key — the key itself is
+never written here.
 
 ---
 
