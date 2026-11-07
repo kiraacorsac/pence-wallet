@@ -17,6 +17,7 @@ const translations = {
     // Wallet types
     'label.walletType.cash': '現金',
     'label.walletType.bank': '銀行帳戶',
+    'label.walletType.investment': '投資帳戶',
 
     // Default expense categories
     'label.cat.food': '飲食',
@@ -256,6 +257,7 @@ const translations = {
 
     'label.walletType.cash': 'Cash',
     'label.walletType.bank': 'Bank Account',
+    'label.walletType.investment': 'Investment',
 
     'label.cat.food': 'Food',
     'label.cat.clothing': 'Clothing',

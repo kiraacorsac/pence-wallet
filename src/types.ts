@@ -1,5 +1,5 @@
 export type TransactionType = 'expense' | 'income' | 'transfer'
-export type WalletType = 'cash' | 'bank'
+export type WalletType = 'cash' | 'bank' | 'investment'
 
 export interface Transaction {
   date: string        // MM/DD format as stored in markdown (e.g. "04/03")
@@ -21,7 +21,37 @@ export interface Wallet {
   initialBalance: number  // may be negative (e.g. a credit card's outstanding debt)
   status: 'active' | 'archived'
   includeInNetAsset: boolean  // active wallets always true; archived wallets can be toggled
-  currency?: string       // ISO 4217 code; absent means the config's base currency
+  currency?: string       // ISO 4217 code; absent means the config's base currency.
+                          // For an investment account, the currency its cash and trades settle in.
+}
+
+/**
+ * What happens inside an investment account, stored in that account's own
+ * ledger file. Money moving in or out of the account is not a trade: it is an
+ * ordinary transfer, income or expense in the month files.
+ *
+ * - buy / sell exchange the account's cash for shares at the stated amount
+ * - adjust changes a share count without touching cash: a split, or shares
+ *   moved in from (positive) or out to (negative) another broker
+ */
+export type TradeAction = 'buy' | 'sell' | 'adjust'
+
+export interface Trade {
+  date: string        // 'YYYY-MM-DD'; a ledger spans many months, so the year is kept
+  action: TradeAction
+  symbol: string      // ticker, upper-cased, e.g. 'NVDA'
+  quantity: number    // shares; always positive for buy / sell, signed for adjust
+  amount?: number     // buy / sell: gross cash value, in the account's currency.
+                      // adjust: the cost basis it adds (absent for a split)
+  fee?: number        // buy / sell only, in the account's currency
+  note: string
+  createdAt?: string  // ISO 8601 timestamp
+}
+
+/** One holding: shares held and what they cost, in the account's currency. */
+export interface Position {
+  quantity: number
+  cost: number
 }
 
 /**
