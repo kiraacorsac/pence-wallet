@@ -2,7 +2,7 @@
 
 All notable changes to PennyWallet will be documented in this file.
 
-## [Unreleased]
+## [0.0.21] - 2026-11-07
 
 ### Added
 - **investment accounts**, a third account type that holds stocks and ETFs (NVDA, SPY, QQQ…) in any number of tickers alongside a cash balance. Deposits, withdrawals, dividends and fees stay ordinary month-file transactions; buys, sells and share adjustments are **trades**, kept in the account's own ledger at `PennyWallet/Investments/<account>.md`
